@@ -155,6 +155,25 @@ export default function SessionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicId, isNew]);
 
+  function handleStartReturningSession() {
+    setStarted(true);
+    sendMessage(
+      { text: "__START_SESSION__" },
+      {
+        body: {
+          topicName: displayName,
+          currentLevel,
+          mentalModel: topic?.mental_model ?? null,
+          commonErrors: topic?.common_errors ?? null,
+          lastSummary,
+          isNewTopic: false,
+          sessionCount,
+          userProfile: profile,
+        },
+      }
+    );
+  }
+
   function handleSend() {
     if (!input.trim() || isStreaming) return;
     if (!started) setStarted(true);
@@ -255,8 +274,8 @@ export default function SessionPage() {
         />
         <ReturningTopicEntry
           topic={topic}
-          onReinforce={() => setStarted(true)}
-          onGoDeeper={() => setStarted(true)}
+          onReinforce={handleStartReturningSession}
+          onGoDeeper={handleStartReturningSession}
         />
       </div>
     );
@@ -281,7 +300,7 @@ export default function SessionPage() {
         onBack={() => router.push("/")}
       />
 
-      {!started && isNew && <NewTopicEntry topicName={newTopicName} />}
+      {isNew && <NewTopicEntry topicName={newTopicName} />}
 
       <div className="flex-1 max-w-2xl mx-auto w-full px-6 py-6 space-y-6 overflow-y-auto">
         {status === "error" && error && (
