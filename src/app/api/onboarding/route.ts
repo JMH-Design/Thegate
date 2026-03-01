@@ -6,8 +6,14 @@ import { createClient } from "@/lib/supabase/server";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  const { messages, action }: { messages: UIMessage[]; action?: string } =
-    await req.json();
+  let body: { messages?: UIMessage[]; action?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const { messages, action } = body;
 
   if (action === "extract_profile") {
     const supabase = await createClient();
@@ -19,7 +25,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const transcript = messages
+    const transcript = (messages ?? [])
       .map((m: UIMessage) => {
         const text =
           m.parts
@@ -31,7 +37,7 @@ export async function POST(req: Request) {
       .join("\n\n");
 
     const { text } = await generateText({
-      model: anthropic("claude-sonnet-4-6-20250514"),
+      model: anthropic("claude-sonnet-4-6"),
       prompt: `${FTUE_EXTRACTION_PROMPT}\n\nTranscript:\n---\n${transcript}\n---`,
     });
 
@@ -51,11 +57,17 @@ export async function POST(req: Request) {
     return Response.json({ profile });
   }
 
-  const result = streamText({
-    model: anthropic("claude-sonnet-4-6-20250514"),
-    system: FTUE_SYSTEM_PROMPT,
-    messages: await convertToModelMessages(messages),
-  });
+  try {
+    const result = streamText({
+      model: anthropic("claude-sonnet-4-6"),
+      system: FTUE_SYSTEM_PROMPT,
+      messages: await convertToModelMessages(messages ?? []),
+    });
 
-  return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse();
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Onboarding request failed";
+    return new Response(message, { status: 500 });
+  }
 }

@@ -39,20 +39,8 @@ export default function SessionPage() {
 
   const [input, setInput] = useState("");
 
-  const { messages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-      body: {
-        topicName: displayName,
-        currentLevel,
-        mentalModel: topic?.mental_model,
-        commonErrors: topic?.common_errors,
-        lastSummary,
-        isNewTopic: isNew || !topic,
-        sessionCount,
-        userProfile: profile,
-      },
-    }),
+  const { messages, sendMessage, status, error } = useChat({
+    transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
 
   const isStreaming = status === "streaming" || status === "submitted";
@@ -125,7 +113,21 @@ export default function SessionPage() {
   function handleSend() {
     if (!input.trim() || isStreaming) return;
     if (!started) setStarted(true);
-    sendMessage({ text: input });
+    sendMessage(
+      { text: input },
+      {
+        body: {
+          topicName: displayName,
+          currentLevel,
+          mentalModel: topic?.mental_model ?? null,
+          commonErrors: topic?.common_errors ?? null,
+          lastSummary,
+          isNewTopic: isNew || !topic,
+          sessionCount,
+          userProfile: profile,
+        },
+      }
+    );
     setInput("");
   }
 
@@ -237,6 +239,12 @@ export default function SessionPage() {
       {!started && isNew && <NewTopicEntry topicName={newTopicName} />}
 
       <div className="flex-1 max-w-2xl mx-auto w-full px-6 py-6 space-y-6 overflow-y-auto">
+        {status === "error" && error && (
+          <div className="rounded-lg bg-danger/10 border border-danger/30 px-4 py-3 text-sm text-danger">
+            <p className="font-medium">Something went wrong</p>
+            <p className="mt-1 text-text-secondary">{error.message}</p>
+          </div>
+        )}
         {messages.map((m, i) => (
           <ChatMessage
             key={m.id}

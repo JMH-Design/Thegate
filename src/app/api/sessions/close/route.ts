@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const analysisPrompt = buildAnalysisPrompt(topicName, transcript, previousLevel);
 
   const { text } = await generateText({
-    model: anthropic("claude-sonnet-4-6-20250514"),
+    model: anthropic("claude-sonnet-4-6"),
     prompt: analysisPrompt,
   });
 

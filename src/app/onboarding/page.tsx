@@ -13,10 +13,8 @@ export default function OnboardingPage() {
   const [extracting, setExtracting] = useState(false);
   const [input, setInput] = useState("");
 
-  const { messages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/onboarding",
-    }),
+  const { messages, sendMessage, status, error } = useChat({
+    transport: new DefaultChatTransport({ api: "/api/onboarding" }),
   });
 
   const isStreaming = status === "streaming" || status === "submitted";
@@ -86,6 +84,12 @@ export default function OnboardingPage() {
       </header>
 
       <div className="flex-1 max-w-2xl mx-auto w-full px-6 py-8 space-y-6 overflow-y-auto">
+        {status === "error" && error && (
+          <div className="rounded-lg bg-danger/10 border border-danger/30 px-4 py-3 text-sm text-danger">
+            <p className="font-medium">Something went wrong</p>
+            <p className="mt-1 text-text-secondary">{error.message}</p>
+          </div>
+        )}
         {messages.length === 0 && !isStreaming && (
           <div className="text-center py-16">
             <p className="text-xs text-text-dim uppercase tracking-widest mb-4">
