@@ -10,9 +10,9 @@ import {
   RoomPosition,
 } from "@/lib/types";
 import { TopicCard } from "./topic-card";
-import { AdvantageCard } from "./advantage-feed";
 import { CanvasMap } from "./canvas-map";
-import { Plus, LogOut, LayoutGrid, List } from "lucide-react";
+import { PackMap } from "./pack-map";
+import { Plus, LogOut, LayoutGrid, List, CircleDot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
@@ -61,7 +61,7 @@ export function KnowledgeMap({
   const supabase = createClient();
   const [newTopic, setNewTopic] = useState("");
   const [showNewTopic, setShowNewTopic] = useState(false);
-  const [viewMode, setViewMode] = useState<"map" | "list">(
+  const [viewMode, setViewMode] = useState<"map" | "pack" | "list">(
     topics.length >= 2 ? "map" : "list"
   );
 
@@ -84,8 +84,8 @@ export function KnowledgeMap({
     : userEmail;
 
   return (
-    <div className="min-h-screen bg-bg-primary">
-      <header className="border-b border-border-subtle">
+    <div className="min-h-screen flex flex-col bg-bg-primary">
+      <header className="shrink-0 border-b border-border-subtle">
         <div className="max-w-[--thread-max-width] mx-auto px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-text-primary tracking-tight">
@@ -103,8 +103,8 @@ export function KnowledgeMap({
         </div>
       </header>
 
-      <main className="max-w-[--thread-max-width] mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
+      <main className="flex flex-1 flex-col min-h-0 max-w-[--thread-max-width] mx-auto w-full px-6 py-10">
+        <div className="shrink-0 flex items-center justify-between mb-8">
           <div>
             <h2 className="text-2xl font-semibold text-text-primary">
               Your Knowledge Map
@@ -129,6 +129,18 @@ export function KnowledgeMap({
                   aria-label="Map view"
                 >
                   <LayoutGrid size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("pack")}
+                  className={`p-2 transition-colors duration-fast ${
+                    viewMode === "pack"
+                      ? "bg-surface text-gold"
+                      : "text-text-muted hover:text-text-secondary"
+                  }`}
+                  aria-label="Pack view"
+                >
+                  <CircleDot size={18} />
                 </button>
                 <button
                   type="button"
@@ -184,29 +196,22 @@ export function KnowledgeMap({
         )}
 
         {topics.length === 0 ? (
-          <EmptyState onStart={() => setShowNewTopic(true)} />
+          <div className="flex flex-1 flex-col items-center justify-center">
+            <EmptyState onStart={() => setShowNewTopic(true)} />
+          </div>
         ) : viewMode === "map" ? (
-          <div className="mb-8">
+          <div className="flex min-h-0 flex-1">
             <CanvasMap topics={topics} profile={profile} />
+          </div>
+        ) : viewMode === "pack" ? (
+          <div className="flex min-h-0 flex-1">
+            <PackMap topics={topics} profile={profile} />
           </div>
         ) : (
           <div className="space-y-3">
             {enriched.map((topic) => (
               <TopicCard key={topic.id} topic={topic} />
             ))}
-          </div>
-        )}
-
-        {enriched.length > 0 && (
-          <div className="mt-12">
-            <h3 className="text-sm font-semibold text-text-dim uppercase tracking-widest mb-4">
-              The Advantage Feed
-            </h3>
-            <div className="space-y-3">
-              {enriched.slice(0, 3).map((topic) => (
-                <AdvantageCard key={topic.id} topic={topic} />
-              ))}
-            </div>
           </div>
         )}
       </main>

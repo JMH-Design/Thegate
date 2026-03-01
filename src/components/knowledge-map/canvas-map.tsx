@@ -185,7 +185,7 @@ export function CanvasMap({
   return (
     <div
       ref={containerRef}
-      className="w-full min-h-[400px] rounded-[--radius-card] border border-border overflow-hidden bg-bg-secondary"
+      className="h-full min-h-[400px] w-full rounded-[--radius-card] border border-border overflow-hidden bg-bg-secondary"
     >
       <ForceGraph2D
         graphData={graphData}
