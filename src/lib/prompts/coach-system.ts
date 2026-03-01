@@ -69,7 +69,7 @@ Where they broke down: ${ctx.lastSummary.where_broke_down.join(", ")}` : ""}
 
 [SESSION OBJECTIVE]
 ${ctx.isNewTopic
-  ? `New topic. Start with a diagnostic question — open-ended, thought-provoking, impossible to Google through. Understand what the user already knows before beginning the audit.`
+  ? `New topic. Start with a diagnostic question — open-ended, thought-provoking, impossible to Google through. Understand what the user already knows before beginning the audit. If the user message is exactly "__START_SESSION__", they have just landed on the page; respond with your first diagnostic question as if they said they're ready to begin.`
   : `Target today: reach Level ${targetLevel} — ${targetLabel}.
 Start by acknowledging where the user is (Level ${ctx.currentLevel}: ${levelLabel}), then begin the Understanding Audit at their current level to verify retention before pushing forward.`}
 

@@ -45,9 +45,54 @@ export default function SessionPage() {
 
   const isStreaming = status === "streaming" || status === "submitted";
 
+  const hasAutoStarted = useRef(false);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Auto-send first message on new topic so coach greets with diagnostic question
+  useEffect(() => {
+    if (
+      isNew &&
+      !loading &&
+      !hasAutoStarted.current &&
+      messages.length === 0 &&
+      !isStreaming &&
+      newTopicName
+    ) {
+      hasAutoStarted.current = true;
+      setStarted(true);
+      sendMessage(
+        { text: "__START_SESSION__" },
+        {
+          body: {
+            topicName: displayName,
+            currentLevel,
+            mentalModel: topic?.mental_model ?? null,
+            commonErrors: topic?.common_errors ?? null,
+            lastSummary,
+            isNewTopic: true,
+            sessionCount,
+            userProfile: profile,
+          },
+        }
+      );
+    }
+  }, [
+    isNew,
+    loading,
+    messages.length,
+    isStreaming,
+    newTopicName,
+    displayName,
+    currentLevel,
+    topic?.mental_model,
+    topic?.common_errors,
+    lastSummary,
+    sessionCount,
+    profile,
+  ]);
 
   useEffect(() => {
     async function loadData() {
@@ -245,18 +290,20 @@ export default function SessionPage() {
             <p className="mt-1 text-text-secondary">{error.message}</p>
           </div>
         )}
-        {messages.map((m, i) => (
-          <ChatMessage
-            key={m.id}
-            role={m.role as "user" | "assistant"}
-            content={getMessageText(m)}
-            isStreaming={
-              isStreaming &&
-              i === messages.length - 1 &&
-              m.role === "assistant"
-            }
-          />
-        ))}
+        {messages
+          .filter((m) => getMessageText(m) !== "__START_SESSION__")
+          .map((m, i, arr) => (
+            <ChatMessage
+              key={m.id}
+              role={m.role as "user" | "assistant"}
+              content={getMessageText(m)}
+              isStreaming={
+                isStreaming &&
+                i === arr.length - 1 &&
+                m.role === "assistant"
+              }
+            />
+          ))}
         <div ref={messagesEndRef} />
       </div>
 
