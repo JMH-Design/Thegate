@@ -46,7 +46,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && !isOnboarding && !isAuthPage) {
+  // Don't redirect API routes — they need to run for onboarding chat to work
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api");
+
+  if (user && !isOnboarding && !isAuthPage && !isApiRoute) {
     const { data: profile } = await supabase
       .from("users")
       .select("profile")
