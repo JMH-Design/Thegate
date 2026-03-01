@@ -6,13 +6,13 @@ import {
   Benchmark,
   UserProfile,
   TopicWithBenchmark,
-  DEPTH_LABELS,
   DepthLevel,
   RoomPosition,
 } from "@/lib/types";
 import { TopicCard } from "./topic-card";
 import { AdvantageCard } from "./advantage-feed";
-import { Plus, LogOut } from "lucide-react";
+import { CanvasMap } from "./canvas-map";
+import { Plus, LogOut, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
@@ -61,6 +61,9 @@ export function KnowledgeMap({
   const supabase = createClient();
   const [newTopic, setNewTopic] = useState("");
   const [showNewTopic, setShowNewTopic] = useState(false);
+  const [viewMode, setViewMode] = useState<"map" | "list">(
+    topics.length >= 2 ? "map" : "list"
+  );
 
   const enriched = enrichTopics(topics, benchmarks);
 
@@ -112,14 +115,44 @@ export function KnowledgeMap({
                 : `${topics.length} topic${topics.length !== 1 ? "s" : ""} mapped`}
             </p>
           </div>
-          <Button
-            variant="primary"
-            onClick={() => setShowNewTopic(true)}
-            className="gap-2"
-          >
-            <Plus size={16} />
-            New Topic
-          </Button>
+          <div className="flex items-center gap-2">
+            {topics.length >= 1 && (
+              <div className="flex rounded-[--radius-button] border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("map")}
+                  className={`p-2 transition-colors duration-fast ${
+                    viewMode === "map"
+                      ? "bg-surface text-gold"
+                      : "text-text-muted hover:text-text-secondary"
+                  }`}
+                  aria-label="Map view"
+                >
+                  <LayoutGrid size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={`p-2 transition-colors duration-fast ${
+                    viewMode === "list"
+                      ? "bg-surface text-gold"
+                      : "text-text-muted hover:text-text-secondary"
+                  }`}
+                  aria-label="List view"
+                >
+                  <List size={18} />
+                </button>
+              </div>
+            )}
+            <Button
+              variant="primary"
+              onClick={() => setShowNewTopic(true)}
+              className="gap-2"
+            >
+              <Plus size={16} />
+              New Topic
+            </Button>
+          </div>
         </div>
 
         {showNewTopic && (
@@ -152,6 +185,10 @@ export function KnowledgeMap({
 
         {topics.length === 0 ? (
           <EmptyState onStart={() => setShowNewTopic(true)} />
+        ) : viewMode === "map" ? (
+          <div className="mb-8">
+            <CanvasMap topics={topics} profile={profile} />
+          </div>
         ) : (
           <div className="space-y-3">
             {enriched.map((topic) => (
