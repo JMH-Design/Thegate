@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import * as d3 from "d3";
-import { buildPackHierarchy, PackNode } from "@/lib/knowledge-map/pack-hierarchy";
+import { PackNode } from "@/lib/knowledge-map/pack-hierarchy";
+import { buildSimilarityPackHierarchy } from "@/lib/knowledge-map/similarity-hierarchy";
 import {
   getIconImage,
   getCachedIconImage,
@@ -74,9 +75,35 @@ export function PackMap({
   const [iconsReady, setIconsReady] = useState(false);
   const [focusNode, setFocusNode] = useState<PackedNode | null>(null);
   const [view, setView] = useState<View | null>(null);
+  const [clusterAssignments, setClusterAssignments] = useState<
+    Record<string, string[]> | null
+  >(null);
   const transitionRef = useRef<number | null>(null);
 
-  const hierarchyData = useMemo(() => buildPackHierarchy(topics), [topics]);
+  useEffect(() => {
+    if (topics.length < 2) {
+      setClusterAssignments(null);
+      return;
+    }
+    fetch("/api/topics/cluster", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        topicNames: topics.map((t) => t.name),
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Cluster request failed");
+        return res.json();
+      })
+      .then((data) => setClusterAssignments(data.clusters ?? null))
+      .catch(() => setClusterAssignments({}));
+  }, [topics]);
+
+  const hierarchyData = useMemo(
+    () => buildSimilarityPackHierarchy(topics, clusterAssignments),
+    [topics, clusterAssignments]
+  );
 
   const { root, nodes } = useMemo(() => {
     const hierarchy = d3
@@ -227,13 +254,24 @@ export function PackMap({
 
   if (topics.length === 0) return null;
 
+  const isLoadingClusters =
+    topics.length >= 2 && clusterAssignments === null;
+
+  if (isLoadingClusters) {
+    return (
+      <div className="relative h-full min-h-[60vh] w-full rounded-[--radius-card] border border-border overflow-hidden bg-bg-secondary flex items-center justify-center">
+        <p className="text-text-secondary">Organizing topics…</p>
+      </div>
+    );
+  }
+
   const nodeId = (n: PackedNode) =>
     n.data.topicId ?? n.data.name ?? `node-${n.x}-${n.y}`;
 
   return (
     <div
       ref={containerRef}
-      className="relative h-full min-h-[400px] w-full rounded-[--radius-card] border border-border overflow-hidden bg-bg-secondary"
+      className="relative h-full min-h-[60vh] w-full rounded-[--radius-card] border border-border overflow-hidden bg-bg-secondary"
     >
       <svg
         ref={svgRef}

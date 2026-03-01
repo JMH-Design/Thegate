@@ -10,9 +10,8 @@ import {
   RoomPosition,
 } from "@/lib/types";
 import { TopicCard } from "./topic-card";
-import { CanvasMap } from "./canvas-map";
 import { PackMap } from "./pack-map";
-import { Plus, LogOut, LayoutGrid, List, CircleDot } from "lucide-react";
+import { Plus, LogOut, List, CircleDot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
@@ -61,8 +60,8 @@ export function KnowledgeMap({
   const supabase = createClient();
   const [newTopic, setNewTopic] = useState("");
   const [showNewTopic, setShowNewTopic] = useState(false);
-  const [viewMode, setViewMode] = useState<"map" | "pack" | "list">(
-    topics.length >= 2 ? "map" : "list"
+  const [viewMode, setViewMode] = useState<"pack" | "list">(
+    topics.length >= 2 ? "pack" : "list"
   );
 
   const enriched = enrichTopics(topics, benchmarks);
@@ -103,8 +102,16 @@ export function KnowledgeMap({
         </div>
       </header>
 
-      <main className="flex flex-1 flex-col min-h-0 max-w-[--thread-max-width] mx-auto w-full px-6 py-10">
-        <div className="shrink-0 flex items-center justify-between mb-8">
+      <main
+        className={`flex flex-1 flex-col min-h-0 w-full py-10 ${
+          viewMode === "pack" ? "" : "max-w-[--thread-max-width] mx-auto px-6"
+        }`}
+      >
+        <div
+          className={`shrink-0 flex items-center justify-between mb-8 ${
+            viewMode === "pack" ? "max-w-[--thread-max-width] mx-auto w-full px-6" : ""
+          }`}
+        >
           <div>
             <h2 className="text-2xl font-semibold text-text-primary">
               Your Knowledge Map
@@ -118,18 +125,6 @@ export function KnowledgeMap({
           <div className="flex items-center gap-2">
             {topics.length >= 1 && (
               <div className="flex rounded-[--radius-button] border border-border overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("map")}
-                  className={`p-2 transition-colors duration-fast ${
-                    viewMode === "map"
-                      ? "bg-surface text-gold"
-                      : "text-text-muted hover:text-text-secondary"
-                  }`}
-                  aria-label="Map view"
-                >
-                  <LayoutGrid size={18} />
-                </button>
                 <button
                   type="button"
                   onClick={() => setViewMode("pack")}
@@ -170,7 +165,9 @@ export function KnowledgeMap({
         {showNewTopic && (
           <form
             onSubmit={handleNewTopic}
-            className="mb-8 flex gap-3 items-center"
+            className={`mb-8 flex gap-3 items-center ${
+              viewMode === "pack" ? "max-w-[--thread-max-width] mx-auto w-full px-6" : ""
+            }`}
           >
             <input
               autoFocus
@@ -199,12 +196,8 @@ export function KnowledgeMap({
           <div className="flex flex-1 flex-col items-center justify-center">
             <EmptyState onStart={() => setShowNewTopic(true)} />
           </div>
-        ) : viewMode === "map" ? (
-          <div className="flex min-h-0 flex-1">
-            <CanvasMap topics={topics} profile={profile} />
-          </div>
         ) : viewMode === "pack" ? (
-          <div className="flex min-h-0 flex-1">
+          <div className="flex min-h-0 flex-1 w-full overflow-hidden">
             <PackMap topics={topics} profile={profile} />
           </div>
         ) : (
