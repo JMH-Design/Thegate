@@ -196,7 +196,7 @@ export function CanvasMap({
         linkSource="source"
         linkTarget="target"
         nodeCanvasObject={nodeCanvasObject}
-        nodeCanvasObjectMode="replace"
+        nodeCanvasObjectMode={() => "replace"}
         nodePointerAreaPaint={nodePointerAreaPaint}
         onNodeClick={handleNodeClick}
         onNodeHover={(n) => setHoverNode(n ? String((n as Record<string, unknown>).id) : null)}
