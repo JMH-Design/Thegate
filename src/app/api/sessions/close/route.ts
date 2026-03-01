@@ -39,6 +39,9 @@ export async function POST(req: Request) {
         where_broke_down: [],
         self_test_questions: [],
         next_session_focus: [],
+        core_concepts: [],
+        current_level_description: "",
+        next_level_requires: "",
       },
       self_test_questions: [],
     };

@@ -155,7 +155,7 @@ export default function SessionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicId, isNew]);
 
-  function handleStartReturningSession() {
+  function handleReinforce() {
     setStarted(true);
     sendMessage(
       { text: "__START_SESSION__" },
@@ -169,6 +169,27 @@ export default function SessionPage() {
           isNewTopic: false,
           sessionCount,
           userProfile: profile,
+          sessionIntent: "reinforce",
+        },
+      }
+    );
+  }
+
+  function handleGoDeeper() {
+    setStarted(true);
+    sendMessage(
+      { text: "__START_SESSION__" },
+      {
+        body: {
+          topicName: displayName,
+          currentLevel,
+          mentalModel: topic?.mental_model ?? null,
+          commonErrors: topic?.common_errors ?? null,
+          lastSummary,
+          isNewTopic: false,
+          sessionCount,
+          userProfile: profile,
+          sessionIntent: "go_deeper",
         },
       }
     );
@@ -274,8 +295,8 @@ export default function SessionPage() {
         />
         <ReturningTopicEntry
           topic={topic}
-          onReinforce={handleStartReturningSession}
-          onGoDeeper={handleStartReturningSession}
+          onReinforce={handleReinforce}
+          onGoDeeper={handleGoDeeper}
         />
       </div>
     );

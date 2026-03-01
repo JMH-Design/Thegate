@@ -72,6 +72,9 @@ export interface SessionSummary {
   where_broke_down: string[];
   self_test_questions: SelfTestQuestion[];
   next_session_focus: string[];
+  core_concepts?: string[];
+  current_level_description?: string;
+  next_level_requires?: string;
 }
 
 export interface SelfTestQuestion {

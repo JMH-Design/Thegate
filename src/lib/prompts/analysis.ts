@@ -29,7 +29,10 @@ Analyze this session carefully and return ONLY valid JSON (no markdown, no expla
       {"question": "<question>", "answer": "<answer>"},
       {"question": "<question>", "answer": "<answer>"}
     ],
-    "next_session_focus": [<array of recommended focus areas for the next session>]
+    "next_session_focus": [<array of recommended focus areas for the next session>],
+    "core_concepts": [<2-4 key ideas as memorable, testable statements - not vague summaries>],
+    "current_level_description": "<where the user is now: 'You are at Level X on [topic].'>",
+    "next_level_requires": "<what Level X+1 would require: specific capability or knowledge>"
   }
 }
 

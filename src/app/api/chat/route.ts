@@ -18,6 +18,7 @@ export async function POST(req: Request) {
       isNewTopic,
       sessionCount,
       userProfile,
+      sessionIntent,
     } = body;
 
     const systemPrompt = buildCoachSystemPrompt({
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
       lastSummary: lastSummary || null,
       isNewTopic: isNewTopic ?? true,
       sessionCount: sessionCount || 1,
+      sessionIntent: sessionIntent || undefined,
     });
 
     const result = streamText({
