@@ -3,10 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+
 import {
   TopicNode,
   computeConnections,
 } from "@/lib/knowledge-map/connections";
+import {
+  getIconImage,
+  getCachedIconImage,
+} from "@/lib/knowledge-map/icon-cache";
 import { Topic, UserProfile } from "@/lib/types";
 
 const ForceGraph2D = dynamic(
@@ -22,27 +27,34 @@ interface CanvasMapProps {
 }
 
 const GOLD = "#D4AF37";
-const SURFACE = "#242424";
-const BORDER = "#3A3A3A";
+const GOLD_FOCUS = "#E8C547";
+const SURFACE_HOVER = "#2E2E2E";
 const TEXT_PRIMARY = "#FFFFFF";
-const TEXT_SECONDARY = "#B8B8B8";
-const TEXT_MUTED = "#808080";
 const SUCCESS = "#22C55E";
 const AMBER = "#F59E0B";
+const BG_SECONDARY = "#1A1A1A";
 
-function getNodeColor(status: string): string {
+function getNodeStyles(status: string): {
+  fill: string;
+  stroke: string;
+  labelColor: string;
+} {
   switch (status) {
     case "strong":
-      return GOLD;
+      return { fill: "rgba(34, 197, 94, 0.15)", stroke: SUCCESS, labelColor: SUCCESS };
     case "needs_review":
-      return AMBER;
+      return { fill: "rgba(245, 158, 11, 0.15)", stroke: AMBER, labelColor: AMBER };
     default:
-      return SURFACE;
+      return {
+        fill: "rgba(212, 175, 55, 0.12)",
+        stroke: GOLD,
+        labelColor: TEXT_PRIMARY,
+      };
   }
 }
 
 function getNodeSize(depth: number): number {
-  return 8 + depth * 2;
+  return 14 + depth * 3;
 }
 
 export function CanvasMap({
@@ -55,6 +67,23 @@ export function CanvasMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
   const [hoverNode, setHoverNode] = useState<string | null>(null);
+  const [iconsReady, setIconsReady] = useState(false);
+
+  const { nodes, edges } = useMemo(
+    () => computeConnections(topics, profile),
+    [topics, profile]
+  );
+
+  useEffect(() => {
+    const iconNames = [
+      ...new Set(
+        nodes.map((n) => (n.icon && n.icon.trim() ? n.icon : "BookMarked"))
+      ),
+    ];
+    Promise.all(iconNames.map((name) => getIconImage(name))).then(() => {
+      setIconsReady(true);
+    });
+  }, [nodes]);
 
   useEffect(() => {
     if (width != null && height != null) {
@@ -71,11 +100,6 @@ export function CanvasMap({
     setDimensions({ width: el.clientWidth, height: el.clientHeight });
     return () => ro.disconnect();
   }, [width, height]);
-
-  const { nodes, edges } = useMemo(
-    () => computeConnections(topics, profile),
-    [topics, profile]
-  );
 
   const graphData = useMemo(() => {
     return {
@@ -105,27 +129,43 @@ export function CanvasMap({
     (node: Record<string, unknown>, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const n = node as unknown as TopicNode & { x?: number; y?: number };
       const label = String(n.name ?? "");
-      const fontSize = 12 / globalScale;
+      const fontSize = Math.max(10, Math.min(14, 12 / globalScale));
       const size = getNodeSize(Number(n.depth ?? 1));
-      const color = getNodeColor(String(n.status ?? "developing"));
+      const status = String(n.status ?? "developing");
+      const styles = getNodeStyles(status);
       const isHover = hoverNode === n.id;
+
+      const fillColor = isHover ? SURFACE_HOVER : styles.fill;
+      const strokeColor = isHover ? GOLD_FOCUS : styles.stroke;
+      const labelColor = isHover ? GOLD_FOCUS : styles.labelColor;
 
       ctx.beginPath();
       ctx.arc(n.x ?? 0, n.y ?? 0, size, 0, 2 * Math.PI);
-      ctx.fillStyle = isHover ? color : SURFACE;
+      ctx.fillStyle = fillColor;
       ctx.fill();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = isHover ? 2 : 1;
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = isHover ? 2.5 : 1.5;
       ctx.stroke();
 
-      ctx.font = `${fontSize}px Inter, sans-serif`;
+      const iconImg = getCachedIconImage(n.icon);
+      if (iconImg && iconImg.complete) {
+        const iconSize = size * 0.5;
+        const iconX = (n.x ?? 0) - iconSize / 2;
+        const iconY = (n.y ?? 0) - iconSize / 2;
+        ctx.save();
+        ctx.globalAlpha = 0.95;
+        ctx.drawImage(iconImg, iconX, iconY, iconSize, iconSize);
+        ctx.restore();
+      }
+
+      ctx.font = `${fontSize}px Inter, -apple-system, BlinkMacSystemFont, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = TEXT_PRIMARY;
-      const lines = label.length > 20 ? label.slice(0, 20) + "…" : label;
-      ctx.fillText(lines, n.x ?? 0, (n.y ?? 0) + size + 10);
+      ctx.fillStyle = labelColor;
+      const lines = label.length > 24 ? label.slice(0, 24) + "…" : label;
+      ctx.fillText(lines, n.x ?? 0, (n.y ?? 0) + size + 12);
     },
-    [hoverNode]
+    [hoverNode, iconsReady]
   );
 
   const nodePointerAreaPaint = useCallback(
@@ -151,7 +191,7 @@ export function CanvasMap({
         graphData={graphData}
         width={dimensions.width}
         height={dimensions.height}
-        backgroundColor="#1A1A1A"
+        backgroundColor={BG_SECONDARY}
         nodeId="id"
         linkSource="source"
         linkTarget="target"
@@ -160,9 +200,9 @@ export function CanvasMap({
         nodePointerAreaPaint={nodePointerAreaPaint}
         onNodeClick={handleNodeClick}
         onNodeHover={(n) => setHoverNode(n ? String((n as Record<string, unknown>).id) : null)}
-        linkColor={() => "rgba(212, 175, 55, 0.5)"}
-        linkWidth={1}
-        linkLineDash={[4, 4]}
+        linkColor={() => "rgba(212, 175, 55, 0.6)"}
+        linkWidth={1.5}
+        linkLineDash={[6, 4]}
         linkLabel={(link: Record<string, unknown>) => (link.label as string) ?? ""}
         linkDirectionalArrowLength={4}
         linkDirectionalArrowRelPos={1}

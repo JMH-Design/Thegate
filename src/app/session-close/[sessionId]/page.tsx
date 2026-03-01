@@ -118,7 +118,10 @@ export default function SessionClosePage() {
 
         <Button
           variant="secondary"
-          onClick={() => router.push("/")}
+          onClick={() => {
+            router.push("/");
+            router.refresh();
+          }}
           className="w-full"
         >
           Back to map

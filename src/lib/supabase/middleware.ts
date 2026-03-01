@@ -33,8 +33,9 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname === "/login" ||
     request.nextUrl.pathname === "/signup";
   const isOnboarding = request.nextUrl.pathname === "/onboarding";
+  const isDbCheckRoute = request.nextUrl.pathname === "/api/db/check-icon-column";
 
-  if (!user && !isAuthPage) {
+  if (!user && !isAuthPage && !isDbCheckRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

@@ -269,6 +269,16 @@ export default function SessionPage() {
 
     if (res.ok) {
       const data = await res.json();
+      if (isNew && newTopicName && activeTopicId) {
+        fetch("/api/topics/suggest-icon", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topicName: newTopicName,
+            topicId: activeTopicId,
+          }),
+        }).catch(() => {});
+      }
       router.push(`/session-close/${data.sessionId}`);
     } else {
       setEnding(false);

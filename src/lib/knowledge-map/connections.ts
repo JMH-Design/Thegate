@@ -6,6 +6,7 @@ export interface TopicNode {
   name: string;
   depth: DepthLevel;
   status: TopicStatus;
+  icon?: string | null;
 }
 
 export interface ConnectionEdge {
@@ -70,6 +71,7 @@ export function computeConnections(
     name: t.name,
     depth: t.current_depth_level,
     status: t.status,
+    icon: t.icon ?? null,
   }));
 
   const strongTopics = topics.filter((t) => t.current_depth_level >= 4);

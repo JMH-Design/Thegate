@@ -50,6 +50,7 @@ export interface Topic {
   last_tested_at: string | null;
   mental_model: string | null;
   common_errors: string[] | null;
+  icon?: string | null;
   created_at: string;
 }
 
