@@ -48,6 +48,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
   } | null>(null);
 
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const queueRef = useRef<ArrayBuffer[]>([]);
   const playingRef = useRef(false);
   const abortCtrlsRef = useRef<AbortController[]>([]);
@@ -116,6 +117,11 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
   );
 
   const interrupt = useCallback(() => {
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.currentTime = 0;
+      audioElementRef.current = null;
+    }
     if (sourceRef.current) {
       try {
         sourceRef.current.stop();
@@ -150,20 +156,29 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
       }
 
       try {
-        const audioBuf = await ctx.decodeAudioData(data);
-        await new Promise<void>((resolve) => {
-          const src = ctx.createBufferSource();
-          src.buffer = audioBuf;
-          src.connect(analyser);
-          sourceRef.current = src;
-          src.onended = () => {
-            sourceRef.current = null;
+        const blob = new Blob([data], { type: "audio/mpeg" });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audioElementRef.current = audio;
+
+        const mediaSource = ctx.createMediaElementSource(audio);
+        mediaSource.connect(analyser);
+
+        await new Promise<void>((resolve, reject) => {
+          audio.onended = () => {
+            audioElementRef.current = null;
+            URL.revokeObjectURL(url);
             resolve();
           };
-          src.start();
+          audio.onerror = () => {
+            audioElementRef.current = null;
+            URL.revokeObjectURL(url);
+            reject();
+          };
+          audio.play().catch(reject);
         });
       } catch {
-        /* decode error — skip chunk */
+        /* playback error — skip chunk */
       }
     }
 
@@ -353,6 +368,10 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     setIsPaused(next);
 
     if (next) {
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        audioElementRef.current = null;
+      }
       if (sourceRef.current) {
         try {
           sourceRef.current.stop();
