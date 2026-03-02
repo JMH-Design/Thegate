@@ -1,14 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Session, Topic, Benchmark, DepthLevel } from "@/lib/types";
 import { LevelProgression } from "@/components/session-close/level-progression";
 import { RoomBenchmark } from "@/components/session-close/room-benchmark";
-import { SessionSummaryView } from "@/components/session-close/session-summary";
+import {
+  SessionSummaryView,
+  buildSummaryScript,
+} from "@/components/session-close/session-summary";
 import { SelfTest } from "@/components/session-close/self-test";
 import { Button } from "@/components/ui/button";
+import { useTTSPlayback } from "@/hooks/use-tts-playback";
 
 export default function SessionClosePage() {
   const params = useParams();
@@ -19,8 +23,10 @@ export default function SessionClosePage() {
   const [topic, setTopic] = useState<Topic | null>(null);
   const [benchmark, setBenchmark] = useState<Benchmark | null>(null);
   const [loading, setLoading] = useState(true);
+  const [autoPlayed, setAutoPlayed] = useState(false);
 
   const supabase = createClient();
+  const tts = useTTSPlayback();
 
   useEffect(() => {
     async function load() {
@@ -62,6 +68,29 @@ export default function SessionClosePage() {
     load();
   }, [sessionId, router, supabase]);
 
+  // Auto-play summary readout when data loads
+  useEffect(() => {
+    if (!session?.session_summary || autoPlayed) return;
+    setAutoPlayed(true);
+    const script = buildSummaryScript(session.session_summary);
+    if (script) tts.play(script);
+  }, [session, autoPlayed, tts]);
+
+  const handleToggleRead = useCallback(() => {
+    if (!session?.session_summary) return;
+
+    if (tts.isPlaying) {
+      if (tts.isPaused) {
+        tts.resume();
+      } else {
+        tts.pause();
+      }
+    } else {
+      const script = buildSummaryScript(session.session_summary);
+      if (script) tts.play(script);
+    }
+  }, [session, tts]);
+
   if (loading || !session) {
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center">
@@ -102,7 +131,12 @@ export default function SessionClosePage() {
           <>
             <div className="w-full h-px bg-border-subtle my-2" />
             <div className="py-6">
-              <SessionSummaryView summary={summary} />
+              <SessionSummaryView
+                summary={summary}
+                isReading={tts.isPlaying}
+                isPaused={tts.isPaused}
+                onToggleRead={handleToggleRead}
+              />
             </div>
           </>
         )}
@@ -119,6 +153,7 @@ export default function SessionClosePage() {
         <Button
           variant="secondary"
           onClick={() => {
+            tts.stopPlayback();
             router.push("/");
             router.refresh();
           }}
