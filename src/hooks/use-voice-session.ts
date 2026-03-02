@@ -290,18 +290,18 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
 
         onSpeechStart: () => {
           if (mutedRef.current || pausedRef.current) return;
-          setStateSync("listening");
-          setCurrentTranscript("");
-        },
-
-        onSpeechRealStart: () => {
-          if (mutedRef.current || pausedRef.current) return;
           if (
             stateRef.current === "speaking" ||
             stateRef.current === "thinking"
           ) {
             interrupt();
           }
+          setStateSync("listening");
+          setCurrentTranscript("");
+        },
+
+        onSpeechRealStart: () => {
+          if (mutedRef.current || pausedRef.current) return;
         },
 
         onSpeechEnd: async (audio: Float32Array) => {
