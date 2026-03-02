@@ -1,7 +1,7 @@
 export const maxDuration = 30;
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY!;
-const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "aMdQCEO9kwP77QH1DiFy";
+const DEFAULT_VOICE_ID = "aMdQCEO9kwP77QH1DiFy";
 
 export async function POST(req: Request) {
   try {
