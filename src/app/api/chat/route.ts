@@ -19,9 +19,12 @@ export async function POST(req: Request) {
       sessionCount,
       userProfile,
       sessionIntent,
+      voiceMode,
     } = body;
 
-    const systemPrompt = buildCoachSystemPrompt({
+    const coachMode = voiceMode ? "audio" : "text";
+    const systemPrompt = buildCoachSystemPrompt(
+      {
       userProfile: userProfile || null,
       topicName: topicName || "Unknown Topic",
       currentLevel: (currentLevel || 1) as DepthLevel,
@@ -31,7 +34,9 @@ export async function POST(req: Request) {
       isNewTopic: isNewTopic ?? true,
       sessionCount: sessionCount || 1,
       sessionIntent: sessionIntent || undefined,
-    });
+    },
+      coachMode
+    );
 
     const result = streamText({
       model: anthropic("claude-sonnet-4-6"),

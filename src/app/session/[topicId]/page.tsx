@@ -62,6 +62,7 @@ export default function SessionPage() {
       isNewTopic: isNew || !topic,
       sessionCount,
       userProfile: profile,
+      voiceMode,
     }),
     [
       displayName,
@@ -73,6 +74,7 @@ export default function SessionPage() {
       topic,
       sessionCount,
       profile,
+      voiceMode,
     ]
   );
 
