@@ -1,8 +1,10 @@
+import { after } from "next/server";
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { buildAnalysisPrompt } from "@/lib/prompts/analysis";
 import { SessionAnalysis, DepthLevel } from "@/lib/types";
+import { clearCachedMessages } from "@/lib/cache/conversation-context";
 
 export async function POST(req: Request) {
   const { topicId, topicName, transcript, previousLevel } = await req.json();
@@ -84,6 +86,10 @@ export async function POST(req: Request) {
       status,
     })
     .eq("id", topicId);
+
+  after(async () => {
+    await clearCachedMessages(topicId);
+  });
 
   return Response.json({
     sessionId: session.id,

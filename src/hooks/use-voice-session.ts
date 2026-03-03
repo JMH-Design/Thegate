@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useRealtimeTranscription } from "./use-realtime-transcription";
 
 export type VoiceState =
   | "idle"
@@ -34,6 +35,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
   const [isMuted, setIsMuted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState("");
+  const [realtimeError, setRealtimeError] = useState<string | null>(null);
 
   const stateRef = useRef<VoiceState>("idle");
   const mutedRef = useRef(false);
@@ -41,15 +43,9 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const vadRef = useRef<{
-    start: () => Promise<void>;
-    pause: () => Promise<void>;
-    destroy: () => Promise<void>;
-  } | null>(null);
-
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
-  const queueRef = useRef<ArrayBuffer[]>([]);
+  const queueRef = useRef<Array<() => Promise<void>>>([]);
   const playingRef = useRef(false);
   const abortCtrlsRef = useRef<AbortController[]>([]);
   const sentLenRef = useRef(0);
@@ -78,43 +74,6 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     }
     return { ctx, analyser: analyserRef.current! };
   }, []);
-
-  const toWav = useCallback(
-    (samples: Float32Array, sampleRate = 16000): Blob => {
-      const len = samples.length;
-      const buffer = new ArrayBuffer(44 + len * 2);
-      const dv = new DataView(buffer);
-      const ws = (off: number, s: string) => {
-        for (let i = 0; i < s.length; i++)
-          dv.setUint8(off + i, s.charCodeAt(i));
-      };
-
-      ws(0, "RIFF");
-      dv.setUint32(4, 36 + len * 2, true);
-      ws(8, "WAVE");
-      ws(12, "fmt ");
-      dv.setUint32(16, 16, true);
-      dv.setUint16(20, 1, true);
-      dv.setUint16(22, 1, true);
-      dv.setUint32(24, sampleRate, true);
-      dv.setUint32(28, sampleRate * 2, true);
-      dv.setUint16(32, 2, true);
-      dv.setUint16(34, 16, true);
-      ws(36, "data");
-      dv.setUint32(40, len * 2, true);
-
-      for (let i = 0; i < len; i++) {
-        const clamped = Math.max(-1, Math.min(1, samples[i]));
-        dv.setInt16(
-          44 + i * 2,
-          clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff,
-          true
-        );
-      }
-      return new Blob([buffer], { type: "audio/wav" });
-    },
-    []
-  );
 
   const interrupt = useCallback(() => {
     if (audioElementRef.current) {
@@ -149,20 +108,113 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
         continue;
       }
 
-      const data = queueRef.current.shift()!;
-      const { ctx, analyser } = ensureAudioCtx();
-      if (ctx.state === "suspended") {
-        await ctx.resume();
-      }
-
+      const playTask = queueRef.current.shift()!;
       try {
+        await playTask();
+      } catch {
+        /* playback error — skip chunk */
+      }
+    }
+
+    playingRef.current = false;
+  }, []);
+
+  const createStreamingPlayTask = useCallback(
+    (res: Response, ctrl: AbortController) => async () => {
+      const { ctx, analyser } = ensureAudioCtx();
+      if (ctx.state === "suspended") await ctx.resume();
+
+      if (
+        typeof MediaSource !== "undefined" &&
+        MediaSource.isTypeSupported("audio/mpeg") &&
+        res.body
+      ) {
+        const mediaSource = new MediaSource();
+        const url = URL.createObjectURL(mediaSource);
+        const audio = new Audio(url);
+        audioElementRef.current = audio;
+        const mediaElementSource = ctx.createMediaElementSource(audio);
+        mediaElementSource.connect(analyser);
+
+        await new Promise<void>((resolve, reject) => {
+          mediaSource.addEventListener(
+            "sourceopen",
+            async () => {
+              try {
+                const sb = mediaSource.addSourceBuffer("audio/mpeg");
+                const reader = res.body!.getReader();
+                let appendQueue: Uint8Array[] = [];
+                let appending = false;
+                let doneReading = false;
+
+                const tryEndOfStream = () => {
+                  if (doneReading && appendQueue.length === 0 && !appending) {
+                    mediaSource.endOfStream();
+                  }
+                };
+
+                const doAppend = () => {
+                  if (appending || appendQueue.length === 0) return;
+                  appending = true;
+                  const chunks = appendQueue.splice(0);
+                  const totalLen = chunks.reduce((a, c) => a + c.length, 0);
+                  const combined = new Uint8Array(totalLen);
+                  let offset = 0;
+                  for (const c of chunks) {
+                    combined.set(c, offset);
+                    offset += c.length;
+                  }
+                  sb.appendBuffer(combined);
+                };
+
+                sb.addEventListener("updateend", () => {
+                  appending = false;
+                  if (appendQueue.length > 0) doAppend();
+                  tryEndOfStream();
+                });
+
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) {
+                    doneReading = true;
+                    break;
+                  }
+                  if (ctrl.signal.aborted) {
+                    reader.cancel();
+                    reject(new DOMException("Aborted", "AbortError"));
+                    return;
+                  }
+                  appendQueue.push(value);
+                  doAppend();
+                }
+                tryEndOfStream();
+              } catch (e) {
+                reject(e);
+              }
+            },
+            { once: true }
+          );
+
+          audio.onended = () => {
+            audioElementRef.current = null;
+            URL.revokeObjectURL(url);
+            resolve();
+          };
+          audio.onerror = () => {
+            audioElementRef.current = null;
+            URL.revokeObjectURL(url);
+            reject();
+          };
+          audio.play().catch(reject);
+        });
+      } else {
+        const data = await res.arrayBuffer();
         const blob = new Blob([data], { type: "audio/mpeg" });
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
         audioElementRef.current = audio;
-
-        const mediaSource = ctx.createMediaElementSource(audio);
-        mediaSource.connect(analyser);
+        const mediaElementSource = ctx.createMediaElementSource(audio);
+        mediaElementSource.connect(analyser);
 
         await new Promise<void>((resolve, reject) => {
           audio.onended = () => {
@@ -177,13 +229,10 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
           };
           audio.play().catch(reject);
         });
-      } catch {
-        /* playback error — skip chunk */
       }
-    }
-
-    playingRef.current = false;
-  }, [ensureAudioCtx]);
+    },
+    [ensureAudioCtx]
+  );
 
   const queueTTS = useCallback(
     async (text: string) => {
@@ -197,15 +246,44 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
           signal: ctrl.signal,
         });
         if (!res.ok) return;
-        const data = await res.arrayBuffer();
-        queueRef.current.push(data);
+        const playTask = createStreamingPlayTask(res, ctrl);
+        queueRef.current.push(playTask);
         playQueue();
       } catch {
         /* aborted or network error */
       }
     },
-    [playQueue]
+    [playQueue, createStreamingPlayTask]
   );
+
+  const realtime = useRealtimeTranscription({
+    onTranscriptComplete: (transcript) => {
+      setCurrentTranscript(transcript);
+      setStateSync("thinking");
+      sentLenRef.current = 0;
+      bufRef.current = "";
+      optionsRef.current.sendMessage(
+        { text: transcript },
+        { body: optionsRef.current.chatBody }
+      );
+    },
+    onSpeechStart: () => {
+      if (
+        stateRef.current === "speaking" ||
+        stateRef.current === "thinking"
+      ) {
+        interrupt();
+      }
+    },
+    onError: (err) => {
+      setRealtimeError(err.message);
+    },
+  });
+
+  const displayTranscript =
+    voiceState === "listening" && realtime.partialTranscript
+      ? realtime.partialTranscript
+      : currentTranscript;
 
   // Watch streaming text from the assistant and pipe to TTS
   useEffect(() => {
@@ -230,12 +308,12 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
 
     if (s !== "speaking") setStateSync("speaking");
 
-    const re = /([.!?])\s+/g;
+    const re = /([.!?])\s+|,\s+|;\s+|\s+—\s+/g;
     let match: RegExpExecArray | null;
     let idx = 0;
     while ((match = re.exec(bufRef.current)) !== null) {
-      const sentence = bufRef.current.slice(idx, match.index + match[1].length);
-      if (sentence.trim()) queueTTS(sentence.trim());
+      const phrase = bufRef.current.slice(idx, match.index + match[0].length);
+      if (phrase.trim()) queueTTS(phrase.trim());
       idx = match.index + match[0].length;
     }
     bufRef.current = bufRef.current.slice(idx);
@@ -267,100 +345,29 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     if (startedRef.current) return;
     startedRef.current = true;
     ensureAudioCtx();
+    setRealtimeError(null);
 
     try {
-      const { MicVAD } = await import("@ricky0123/vad-web");
-
-      const vad = await MicVAD.new({
-        baseAssetPath: "/vad/",
-        onnxWASMBasePath: "/vad/",
-        getStream: () =>
-          navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-          }),
-        positiveSpeechThreshold: 0.92,
-        negativeSpeechThreshold: 0.35,
-        minSpeechMs: 400,
-        preSpeechPadMs: 300,
-        redemptionMs: 800,
-
-        onSpeechStart: () => {
-          if (mutedRef.current || pausedRef.current) return;
-          if (
-            stateRef.current === "speaking" ||
-            stateRef.current === "thinking"
-          ) {
-            interrupt();
-          }
-          setStateSync("listening");
-          setCurrentTranscript("");
-        },
-
-        onSpeechRealStart: () => {
-          if (mutedRef.current || pausedRef.current) return;
-        },
-
-        onSpeechEnd: async (audio: Float32Array) => {
-          if (mutedRef.current || pausedRef.current) return;
-          setStateSync("transcribing");
-
-          try {
-            const blob = toWav(audio);
-            const fd = new FormData();
-            fd.append("audio", blob, "speech.wav");
-            const res = await fetch("/api/voice/transcribe", {
-              method: "POST",
-              body: fd,
-            });
-
-            if (!res.ok) {
-              setStateSync("listening");
-              return;
-            }
-
-            const { text } = await res.json();
-            if (!text?.trim()) {
-              setStateSync("listening");
-              return;
-            }
-
-            setCurrentTranscript(text);
-            setStateSync("thinking");
-            sentLenRef.current = 0;
-            bufRef.current = "";
-
-            optionsRef.current.sendMessage(
-              { text },
-              { body: optionsRef.current.chatBody }
-            );
-          } catch {
-            setStateSync("listening");
-          }
-        },
-      });
-
-      vadRef.current = vad;
-      vad.start();
+      await realtime.connect();
       setStateSync("listening");
     } catch (err) {
-      console.error("VAD initialization failed:", err);
+      console.error("Realtime transcription failed:", err);
       startedRef.current = false;
       setStateSync("idle");
     }
-  }, [ensureAudioCtx, interrupt, setStateSync, toWav]);
+  }, [ensureAudioCtx, realtime, setStateSync]);
 
   const toggleMute = useCallback(() => {
     const next = !mutedRef.current;
     mutedRef.current = next;
     setIsMuted(next);
-    if (vadRef.current) {
-      next ? vadRef.current.pause() : vadRef.current.start();
+    if (next) {
+      realtime.disconnect();
+    } else if (startedRef.current) {
+      setStateSync("listening");
+      realtime.connect();
     }
-  }, []);
+  }, [realtime, setStateSync]);
 
   const togglePause = useCallback(() => {
     const next = !pausedRef.current;
@@ -381,20 +388,15 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
         sourceRef.current = null;
       }
       audioCtxRef.current?.suspend();
-      if (vadRef.current) vadRef.current.pause();
     } else {
       audioCtxRef.current?.resume();
-      if (!mutedRef.current && vadRef.current) vadRef.current.start();
       playQueue();
     }
   }, [playQueue]);
 
   const cleanup = useCallback(() => {
     interrupt();
-    if (vadRef.current) {
-      vadRef.current.destroy();
-      vadRef.current = null;
-    }
+    realtime.disconnect();
     const externalCtx = optionsRef.current.audioContextRef?.current;
     if (audioCtxRef.current && audioCtxRef.current !== externalCtx) {
       audioCtxRef.current.close();
@@ -404,19 +406,20 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     setAnalyserNode(null);
     startedRef.current = false;
     setStateSync("idle");
-  }, [interrupt, setStateSync]);
+  }, [interrupt, realtime, setStateSync]);
 
   useEffect(() => () => cleanup(), [cleanup]);
 
   return {
     state: voiceState,
     analyser: analyserNode,
-    currentTranscript,
+    currentTranscript: displayTranscript,
     isMuted,
     isPaused,
     toggleMute,
     togglePause,
     start,
     cleanup,
+    realtimeError,
   };
 }

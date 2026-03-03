@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { createClient } from "@/lib/supabase/client";
-import { Topic, DepthLevel, UserProfile, SessionSummary } from "@/lib/types";
+import { Topic, DepthLevel } from "@/lib/types";
 import { ChatMessage } from "@/components/session/chat-message";
 import { ChatInput } from "@/components/session/chat-input";
 import { SessionHeader } from "@/components/session/session-header";
@@ -15,6 +15,7 @@ import {
 } from "@/components/session/topic-entry";
 import { VoiceMode } from "@/components/session/voice-mode";
 import { useVoiceSession } from "@/hooks/use-voice-session";
+import { useSessionData, useInvalidateSessionData } from "@/hooks/use-session-chat";
 import { Mic } from "lucide-react";
 
 export default function SessionPage() {
@@ -25,18 +26,33 @@ export default function SessionPage() {
   const isNew = topicId === "new";
   const newTopicName = searchParams.get("topic") || "";
 
-  const [topic, setTopic] = useState<Topic | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [sessionCount, setSessionCount] = useState(1);
-  const [lastSummary, setLastSummary] = useState<SessionSummary | null>(null);
   const [started, setStarted] = useState(false);
-  const [loading, setLoading] = useState(!isNew);
   const [ending, setEnding] = useState(false);
   const [voiceMode, setVoiceMode] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const supabase = createClient();
+
+  const {
+    data: sessionData,
+    isLoading: loading,
+    error: sessionError,
+  } = useSessionData(topicId, isNew);
+  const invalidateSessionData = useInvalidateSessionData();
+
+  const topic = sessionData?.topic ?? null;
+  const profile = sessionData?.profile ?? null;
+  const sessionCount = sessionData?.sessionCount ?? 1;
+  const lastSummary = sessionData?.lastSummary ?? null;
+
+  useEffect(() => {
+    if (sessionError?.message === "Not authenticated") {
+      router.push("/login");
+    } else if (sessionError?.message === "Topic not found") {
+      router.push("/");
+    }
+  }, [sessionError, router]);
 
   const currentLevel = (topic?.current_depth_level || 1) as DepthLevel;
   const targetLevel = Math.min(currentLevel + 1, 5) as DepthLevel;
@@ -52,6 +68,8 @@ export default function SessionPage() {
 
   const hasAutoStarted = useRef(false);
 
+  const sessionId = isNew ? `new-${newTopicName || "session"}` : topicId;
+
   const chatBody = useMemo(
     () => ({
       topicName: displayName,
@@ -63,6 +81,7 @@ export default function SessionPage() {
       sessionCount,
       userProfile: profile,
       voiceMode,
+      sessionId,
     }),
     [
       displayName,
@@ -75,6 +94,7 @@ export default function SessionPage() {
       sessionCount,
       profile,
       voiceMode,
+      sessionId,
     ]
   );
 
@@ -125,67 +145,6 @@ export default function SessionPage() {
     chatBody,
     sendMessage,
   ]);
-
-  useEffect(() => {
-    async function loadData() {
-      if (isNew) {
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData.user) {
-          const { data: u } = await supabase
-            .from("users")
-            .select("profile")
-            .eq("id", userData.user.id)
-            .single();
-          setProfile(u?.profile || null);
-        }
-        setLoading(false);
-        return;
-      }
-
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) {
-        router.push("/login");
-        return;
-      }
-
-      const [{ data: topicData }, { data: u }] = await Promise.all([
-        supabase.from("topics").select("*").eq("id", topicId).single(),
-        supabase
-          .from("users")
-          .select("profile")
-          .eq("id", userData.user.id)
-          .single(),
-      ]);
-
-      if (!topicData) {
-        router.push("/");
-        return;
-      }
-
-      setTopic(topicData as Topic);
-      setProfile(u?.profile || null);
-
-      const { count } = await supabase
-        .from("sessions")
-        .select("*", { count: "exact", head: true })
-        .eq("topic_id", topicId);
-      setSessionCount((count || 0) + 1);
-
-      const { data: lastSession } = await supabase
-        .from("sessions")
-        .select("session_summary")
-        .eq("topic_id", topicId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-      setLastSummary(lastSession?.session_summary || null);
-
-      setLoading(false);
-    }
-
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topicId, isNew]);
 
   function handleReinforce() {
     if (!audioContextRef.current) {
@@ -281,7 +240,6 @@ export default function SessionPage() {
 
       if (newTopic) {
         activeTopicId = newTopic.id;
-        setTopic(newTopic as Topic);
       }
     }
 
@@ -298,6 +256,7 @@ export default function SessionPage() {
 
     if (res.ok) {
       const data = await res.json();
+      invalidateSessionData(activeTopicId ?? topicId, false);
       if (isNew && newTopicName && activeTopicId) {
         fetch("/api/topics/suggest-icon", {
           method: "POST",
