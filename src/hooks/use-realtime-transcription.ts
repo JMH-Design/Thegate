@@ -36,7 +36,7 @@ export function useRealtimeTranscription(
   const tokenRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const partialBufferRef = useRef("");
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (preAcquiredStream?: MediaStream | null) => {
     try {
       optionsRef.current.onConnectionStateChange?.("connecting");
       setError(null);
@@ -53,7 +53,7 @@ export function useRealtimeTranscription(
       const pc = new RTCPeerConnection();
       pcRef.current = pc;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = preAcquiredStream ?? await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -128,7 +128,7 @@ export function useRealtimeTranscription(
 
       tokenRefreshTimerRef.current = setTimeout(() => {
         disconnect();
-        connect();
+        connect(undefined);
       }, TOKEN_REFRESH_MS);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Connection failed";

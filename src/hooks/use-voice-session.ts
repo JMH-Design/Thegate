@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRealtimeTranscription } from "./use-realtime-transcription";
+import { useVadWhisperTranscription } from "./use-vad-whisper-transcription";
 
 export type VoiceState =
   | "idle"
@@ -24,6 +25,8 @@ interface UseVoiceSessionOptions {
   chatBody: Record<string, unknown>;
   /** Pre-created AudioContext from user gesture (required for autoplay policy) */
   audioContextRef?: { current: AudioContext | null };
+  /** Pre-acquired mic stream (e.g. from new-topic form submit); consumed on first start */
+  preAcquiredStreamRef?: React.MutableRefObject<MediaStream | null | undefined>;
 }
 
 export function useVoiceSession(options: UseVoiceSessionOptions) {
@@ -51,6 +54,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
   const sentLenRef = useRef(0);
   const bufRef = useRef("");
   const startedRef = useRef(false);
+  const activeTranscriberRef = useRef<"realtime" | "fallback" | null>(null);
 
   const setStateSync = useCallback((s: VoiceState) => {
     stateRef.current = s;
@@ -280,10 +284,37 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     },
   });
 
+  const fallback = useVadWhisperTranscription({
+    onTranscriptComplete: (transcript) => {
+      setCurrentTranscript(transcript);
+      setStateSync("thinking");
+      sentLenRef.current = 0;
+      bufRef.current = "";
+      optionsRef.current.sendMessage(
+        { text: transcript },
+        { body: optionsRef.current.chatBody }
+      );
+    },
+    onSpeechStart: () => {
+      if (
+        stateRef.current === "speaking" ||
+        stateRef.current === "thinking"
+      ) {
+        interrupt();
+      }
+    },
+    onError: (err) => {
+      setRealtimeError(err.message);
+    },
+  });
+
+  const activePartial = realtime.isConnected
+    ? realtime.partialTranscript
+    : fallback.isConnected
+      ? fallback.partialTranscript
+      : "";
   const displayTranscript =
-    voiceState === "listening" && realtime.partialTranscript
-      ? realtime.partialTranscript
-      : currentTranscript;
+    voiceState === "listening" && activePartial ? activePartial : currentTranscript;
 
   // Watch streaming text from the assistant and pipe to TTS
   useEffect(() => {
@@ -347,15 +378,38 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     ensureAudioCtx();
     setRealtimeError(null);
 
+    const preStream =
+      optionsRef.current.preAcquiredStreamRef?.current ?? undefined;
+    if (preStream) {
+      optionsRef.current.preAcquiredStreamRef!.current = null;
+    }
+
     try {
-      await realtime.connect();
+      await realtime.connect(preStream ?? undefined);
+      activeTranscriberRef.current = "realtime";
       setStateSync("listening");
     } catch (err) {
-      console.error("Realtime transcription failed:", err);
-      startedRef.current = false;
-      setStateSync("idle");
+      console.warn("Realtime failed, trying VAD+Whisper fallback:", err);
+      setRealtimeError(
+        err instanceof Error ? err.message : "Realtime failed"
+      );
+      try {
+        await fallback.connect(preStream ?? undefined);
+        activeTranscriberRef.current = "fallback";
+        setRealtimeError(null);
+        setStateSync("listening");
+      } catch (fallbackErr) {
+        console.error("Fallback transcription failed:", fallbackErr);
+        setRealtimeError(
+          fallbackErr instanceof Error
+            ? fallbackErr.message
+            : "Voice failed"
+        );
+        startedRef.current = false;
+        setStateSync("idle");
+      }
     }
-  }, [ensureAudioCtx, realtime, setStateSync]);
+  }, [ensureAudioCtx, realtime, fallback, setStateSync]);
 
   const toggleMute = useCallback(() => {
     const next = !mutedRef.current;
@@ -363,11 +417,17 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     setIsMuted(next);
     if (next) {
       realtime.disconnect();
+      fallback.disconnect();
     } else if (startedRef.current) {
+      const active = activeTranscriberRef.current;
       setStateSync("listening");
-      realtime.connect();
+      if (active === "fallback") {
+        fallback.connect(undefined);
+      } else {
+        realtime.connect(undefined);
+      }
     }
-  }, [realtime, setStateSync]);
+  }, [realtime, fallback, setStateSync]);
 
   const togglePause = useCallback(() => {
     const next = !pausedRef.current;
@@ -397,6 +457,8 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
   const cleanup = useCallback(() => {
     interrupt();
     realtime.disconnect();
+    fallback.disconnect();
+    activeTranscriberRef.current = null;
     const externalCtx = optionsRef.current.audioContextRef?.current;
     if (audioCtxRef.current && audioCtxRef.current !== externalCtx) {
       audioCtxRef.current.close();
@@ -406,7 +468,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     setAnalyserNode(null);
     startedRef.current = false;
     setStateSync("idle");
-  }, [interrupt, realtime, setStateSync]);
+  }, [interrupt, realtime, fallback, setStateSync]);
 
   useEffect(() => () => cleanup(), [cleanup]);
 

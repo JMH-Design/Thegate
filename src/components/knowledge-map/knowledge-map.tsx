@@ -14,6 +14,7 @@ import { PackMap } from "./pack-map";
 import { Plus, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { setPreAcquiredStream } from "@/lib/voice-pre-session";
 import { useState } from "react";
 
 interface KnowledgeMapProps {
@@ -74,6 +75,18 @@ export function KnowledgeMap({
   async function handleNewTopic(e: React.FormEvent) {
     e.preventDefault();
     if (!newTopic.trim()) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      setPreAcquiredStream(stream);
+    } catch {
+      // Mic access denied; session page will handle fallback
+    }
     router.push(`/session/new?topic=${encodeURIComponent(newTopic.trim())}`);
   }
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { type VoiceState } from "@/hooks/use-voice-session";
 import { AudioVisualizer } from "@/components/session/audio-visualizer";
 import { VoiceTranscript } from "@/components/session/voice-transcript";
@@ -17,11 +16,11 @@ interface VoiceModeProps {
   canEnd: boolean;
   topicName: string;
   sessionNumber: number;
+  voiceError: string | null;
   onToggleMute: () => void;
   onTogglePause: () => void;
   onEnd: () => void;
   onSwitchToText: () => void;
-  onStart: () => Promise<void>;
 }
 
 export function VoiceMode({
@@ -34,18 +33,12 @@ export function VoiceMode({
   canEnd,
   topicName,
   sessionNumber,
+  voiceError,
   onToggleMute,
   onTogglePause,
   onEnd,
   onSwitchToText,
-  onStart,
 }: VoiceModeProps) {
-  useEffect(() => {
-    if (state === "idle") {
-      onStart();
-    }
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
-
   return (
     <div className="flex-1 flex flex-col">
       {/* Switch to text toggle */}
@@ -59,10 +52,20 @@ export function VoiceMode({
         </button>
       </div>
 
-      {/* Center: Visualizer */}
+      {/* Center: Visualizer or Connecting */}
       <div className="flex-1 flex items-center justify-center px-8">
-        <div className="w-full max-w-xl">
+        <div className="w-full max-w-xl flex flex-col items-center gap-4">
           <AudioVisualizer analyser={analyser} state={state} />
+          {state === "idle" && (
+            <p className="text-sm text-text-dim animate-pulse">
+              Connecting...
+            </p>
+          )}
+          {voiceError && (
+            <p className="text-xs text-danger text-center max-w-xs">
+              {voiceError}
+            </p>
+          )}
         </div>
       </div>
 

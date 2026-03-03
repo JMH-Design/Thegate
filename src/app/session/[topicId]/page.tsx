@@ -16,6 +16,7 @@ import {
 import { VoiceMode } from "@/components/session/voice-mode";
 import { useVoiceSession } from "@/hooks/use-voice-session";
 import { useSessionData, useInvalidateSessionData } from "@/hooks/use-session-chat";
+import { takePreAcquiredStream } from "@/lib/voice-pre-session";
 import { Mic } from "lucide-react";
 
 export default function SessionPage() {
@@ -32,6 +33,7 @@ export default function SessionPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const preAcquiredStreamRef = useRef<MediaStream | null>(null);
   const supabase = createClient();
 
   const {
@@ -105,6 +107,7 @@ export default function SessionPage() {
     stop,
     chatBody,
     audioContextRef,
+    preAcquiredStreamRef,
   });
 
   useEffect(() => {
@@ -124,8 +127,10 @@ export default function SessionPage() {
         audioContextRef.current = new AudioContext();
         audioContextRef.current.resume();
       }
+      preAcquiredStreamRef.current = takePreAcquiredStream();
       hasAutoStarted.current = true;
       setStarted(true);
+      voice.start();
       sendMessage(
         { text: "__START_SESSION__" },
         {
@@ -144,6 +149,7 @@ export default function SessionPage() {
     newTopicName,
     chatBody,
     sendMessage,
+    voice,
   ]);
 
   function handleReinforce() {
@@ -151,6 +157,7 @@ export default function SessionPage() {
       audioContextRef.current = new AudioContext();
       audioContextRef.current.resume();
     }
+    voice.start();
     setStarted(true);
     sendMessage(
       { text: "__START_SESSION__" },
@@ -169,6 +176,7 @@ export default function SessionPage() {
       audioContextRef.current = new AudioContext();
       audioContextRef.current.resume();
     }
+    voice.start();
     setStarted(true);
     sendMessage(
       { text: "__START_SESSION__" },
@@ -332,11 +340,11 @@ export default function SessionPage() {
           canEnd={messages.length >= 4}
           topicName={displayName}
           sessionNumber={sessionCount}
+          voiceError={voice.realtimeError}
           onToggleMute={voice.toggleMute}
           onTogglePause={voice.togglePause}
           onEnd={handleEndSession}
           onSwitchToText={handleSwitchToText}
-          onStart={voice.start}
         />
       ) : (
         <>

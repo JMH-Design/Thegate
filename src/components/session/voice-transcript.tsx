@@ -34,7 +34,7 @@ export function VoiceTranscript({ state, text }: VoiceTranscriptProps) {
       )}
       {state === "idle" && (
         <p className="text-sm text-text-dim text-center">
-          Voice session paused
+          Connecting...
         </p>
       )}
     </div>
