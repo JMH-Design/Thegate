@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import {
+  normalizeVoiceError,
+  classifyVoiceError,
+} from "@/lib/voice-errors";
 
 interface RealtimeTranscriptEvent {
   type: string;
@@ -132,25 +136,27 @@ export function useRealtimeTranscription(
 
       tokenRefreshTimerRef.current = setTimeout(() => {
         disconnect();
-        connect(undefined).catch((refreshErr) => {
-          const msg =
-            refreshErr instanceof Error
-              ? refreshErr.message
-              : "Reconnect failed";
-          setError(`Session expired. Tap mute then unmute to reconnect. (${msg})`);
-          setIsConnected(false);
-          optionsRef.current.onConnectionStateChange?.("failed");
-          optionsRef.current.onError?.(
-            refreshErr instanceof Error ? refreshErr : new Error(msg)
-          );
-        });
+        const info = normalizeVoiceError("Session expired.");
+        setError(`${info.message} ${info.action}`);
+        setIsConnected(false);
+        optionsRef.current.onConnectionStateChange?.("failed");
+        optionsRef.current.onError?.(new Error("Session expired"));
       }, TOKEN_REFRESH_MS);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Connection failed";
-      setError(message);
+      const raw = err instanceof Error ? err.message : "Connection failed";
+      const category = classifyVoiceError(raw);
+      if (typeof console !== "undefined" && console.warn) {
+        console.warn("[realtime] Connection failed", {
+          category,
+          message: raw,
+          error: err,
+        });
+      }
+      const info = normalizeVoiceError(raw);
+      setError(`${info.message} ${info.action}`);
       setIsConnected(false);
       optionsRef.current.onConnectionStateChange?.("failed");
-      optionsRef.current.onError?.(err instanceof Error ? err : new Error(message));
+      optionsRef.current.onError?.(err instanceof Error ? err : new Error(raw));
     }
   }, []);
 

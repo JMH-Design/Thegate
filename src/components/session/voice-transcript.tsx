@@ -5,23 +5,32 @@ import { type VoiceState } from "@/hooks/use-voice-session";
 interface VoiceTranscriptProps {
   state: VoiceState;
   text: string;
+  /** When true, user must finish speaking before processing (VAD+Whisper fallback) */
+  isFallbackMode?: boolean;
 }
 
-const STATUS_LABELS: Partial<Record<VoiceState, string>> = {
-  listening: "Listening...",
-  transcribing: "Processing...",
-  thinking: "Thinking...",
-};
+export function VoiceTranscript({
+  state,
+  text,
+  isFallbackMode,
+}: VoiceTranscriptProps) {
+  const getLabel = () => {
+    if (state === "transcribing") return "Processing...";
+    if (state === "thinking") return "Thinking...";
+    if (state === "listening") {
+      return isFallbackMode ? "Speak now" : "Listening...";
+    }
+    return null;
+  };
 
-export function VoiceTranscript({ state, text }: VoiceTranscriptProps) {
-  const label = STATUS_LABELS[state];
+  const label = getLabel();
   const showText =
     state === "speaking" ||
     state === "thinking" ||
     (state === "listening" && !!text);
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-6 min-h-[4rem] flex items-center justify-center">
+    <div className="w-full max-w-2xl mx-auto px-6 min-h-[4rem] flex flex-col items-center justify-center gap-1">
       {label && !showText && (
         <p className="text-sm text-text-muted animate-pulse text-center">
           {label}
@@ -36,6 +45,9 @@ export function VoiceTranscript({ state, text }: VoiceTranscriptProps) {
         <p className="text-sm text-text-dim text-center">
           Connecting...
         </p>
+      )}
+      {isFallbackMode && state === "listening" && (
+        <p className="text-[11px] text-text-dim">Using backup voice</p>
       )}
     </div>
   );

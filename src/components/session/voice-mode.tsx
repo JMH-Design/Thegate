@@ -17,10 +17,12 @@ interface VoiceModeProps {
   topicName: string;
   sessionNumber: number;
   voiceError: string | null;
+  activeTranscriber?: "realtime" | "fallback" | null;
   onToggleMute: () => void;
   onTogglePause: () => void;
   onEnd: () => void;
   onSwitchToText: () => void;
+  onReconnect?: () => void;
 }
 
 export function VoiceMode({
@@ -34,10 +36,12 @@ export function VoiceMode({
   topicName,
   sessionNumber,
   voiceError,
+  activeTranscriber,
   onToggleMute,
   onTogglePause,
   onEnd,
   onSwitchToText,
+  onReconnect,
 }: VoiceModeProps) {
   return (
     <div className="flex-1 flex flex-col">
@@ -56,22 +60,35 @@ export function VoiceMode({
       <div className="flex-1 flex items-center justify-center px-8">
         <div className="w-full max-w-xl flex flex-col items-center gap-4">
           <AudioVisualizer analyser={analyser} state={state} />
-          {state === "idle" && (
+          {state === "idle" && !voiceError && (
             <p className="text-sm text-text-dim animate-pulse">
               Connecting...
             </p>
           )}
           {voiceError && (
-            <p className="text-xs text-danger text-center max-w-xs">
-              {voiceError}
-            </p>
+            <div className="flex flex-col items-center gap-2 max-w-xs">
+              <p className="text-xs text-danger text-center">{voiceError}</p>
+              {onReconnect && (
+                <button
+                  onClick={onReconnect}
+                  disabled={ending}
+                  className="text-xs font-medium text-gold hover:text-gold/80 transition-colors disabled:opacity-40"
+                >
+                  Reconnect
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
 
       {/* Bottom: Transcript + Controls */}
       <div className="pb-6 space-y-5">
-        <VoiceTranscript state={state} text={currentTranscript} />
+        <VoiceTranscript
+          state={state}
+          text={currentTranscript}
+          isFallbackMode={activeTranscriber === "fallback"}
+        />
 
         <VoiceControls
           isMuted={isMuted}

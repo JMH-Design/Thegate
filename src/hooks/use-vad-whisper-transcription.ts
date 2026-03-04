@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { MicVAD } from "@ricky0123/vad-web";
+import { normalizeVoiceError } from "@/lib/voice-errors";
 import { float32ToWavFile } from "@/lib/audio-utils";
 
 interface UseVadWhisperTranscriptionOptions {
@@ -38,7 +39,7 @@ export function useVadWhisperTranscription(
         onSpeechEnd: async (audio: Float32Array) => {
           if (transcribingRef.current) return;
           transcribingRef.current = true;
-          setPartialTranscript("Processing...");
+          setPartialTranscript("Processing your speech...");
 
           try {
             const file = float32ToWavFile(audio);
@@ -82,13 +83,14 @@ export function useVadWhisperTranscription(
       setIsConnected(true);
       optionsRef.current.onConnectionStateChange?.("connected");
     } catch (err) {
-      const message =
+      const raw =
         err instanceof Error ? err.message : "VAD connection failed";
-      setError(message);
+      const info = normalizeVoiceError(raw);
+      setError(`${info.message} ${info.action}`);
       setIsConnected(false);
       optionsRef.current.onConnectionStateChange?.("failed");
       optionsRef.current.onError?.(
-        err instanceof Error ? err : new Error(message)
+        err instanceof Error ? err : new Error(raw)
       );
     }
   }, []);

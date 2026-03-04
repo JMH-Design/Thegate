@@ -341,10 +341,12 @@ export default function SessionPage() {
           topicName={displayName}
           sessionNumber={sessionCount}
           voiceError={voice.realtimeError}
+          activeTranscriber={voice.activeTranscriber}
           onToggleMute={voice.toggleMute}
           onTogglePause={voice.togglePause}
           onEnd={handleEndSession}
           onSwitchToText={handleSwitchToText}
+          onReconnect={voice.reconnect}
         />
       ) : (
         <>

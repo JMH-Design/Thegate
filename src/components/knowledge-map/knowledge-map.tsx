@@ -61,6 +61,7 @@ export function KnowledgeMap({
   const supabase = createClient();
   const [newTopic, setNewTopic] = useState("");
   const [showNewTopic, setShowNewTopic] = useState(false);
+  const [micDenied, setMicDenied] = useState(false);
   // viewMode: default "list"; add view switcher UI to re-enable pack view
   const [viewMode] = useState<"pack" | "list">("list");
 
@@ -75,6 +76,7 @@ export function KnowledgeMap({
   async function handleNewTopic(e: React.FormEvent) {
     e.preventDefault();
     if (!newTopic.trim()) return;
+    setMicDenied(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -84,10 +86,27 @@ export function KnowledgeMap({
         },
       });
       setPreAcquiredStream(stream);
+      router.push(`/session/new?topic=${encodeURIComponent(newTopic.trim())}`);
     } catch {
-      // Mic access denied; session page will handle fallback
+      setMicDenied(true);
     }
-    router.push(`/session/new?topic=${encodeURIComponent(newTopic.trim())}`);
+  }
+
+  async function handleRetryMic() {
+    setMicDenied(false);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      setPreAcquiredStream(stream);
+      router.push(`/session/new?topic=${encodeURIComponent(newTopic.trim())}`);
+    } catch {
+      setMicDenied(true);
+    }
   }
 
   const greeting = profile?.role
@@ -139,28 +158,62 @@ export function KnowledgeMap({
         </div>
 
         {showNewTopic && (
-          <form onSubmit={handleNewTopic} className="mb-8 flex gap-3 items-center">
-            <input
-              autoFocus
-              value={newTopic}
-              onChange={(e) => setNewTopic(e.target.value)}
-              placeholder="What do you want to understand?"
-              className="flex-1 h-12 bg-surface border border-border rounded-[--radius-input] px-4 text-input text-text-primary-soft placeholder:text-text-muted transition-all duration-fast focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/30"
-            />
-            <Button type="submit" disabled={!newTopic.trim()}>
-              Start
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setShowNewTopic(false);
-                setNewTopic("");
-              }}
-            >
-              Cancel
-            </Button>
-          </form>
+          <div className="mb-8">
+            <form onSubmit={handleNewTopic} className="flex gap-3 items-center">
+              <input
+                autoFocus
+                value={newTopic}
+                onChange={(e) => setNewTopic(e.target.value)}
+                placeholder="What do you want to understand?"
+                className="flex-1 h-12 bg-surface border border-border rounded-[--radius-input] px-4 text-input text-text-primary-soft placeholder:text-text-muted transition-all duration-fast focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/30"
+              />
+              <Button type="submit" disabled={!newTopic.trim()}>
+                Start
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setShowNewTopic(false);
+                  setNewTopic("");
+                  setMicDenied(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </form>
+            {micDenied && (
+              <div className="mt-3 p-3 rounded-lg bg-danger/10 border border-danger/30">
+                <p className="text-sm text-danger">
+                  Microphone access is required for voice sessions. Please allow
+                  mic access and try again, or use text mode on the session page.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-8 px-3 text-xs"
+                    onClick={handleRetryMic}
+                  >
+                    Retry microphone
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-8 px-3 text-xs"
+                    onClick={() => {
+                      setMicDenied(false);
+                      router.push(
+                        `/session/new?topic=${encodeURIComponent(newTopic.trim())}`
+                      );
+                    }}
+                  >
+                    Continue with text mode
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {topics.length === 0 ? (

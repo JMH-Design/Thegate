@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRealtimeTranscription } from "./use-realtime-transcription";
+import { normalizeVoiceError } from "@/lib/voice-errors";
 import { useVadWhisperTranscription } from "./use-vad-whisper-transcription";
 
 export type VoiceState =
@@ -39,6 +40,9 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
   const [isPaused, setIsPaused] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [realtimeError, setRealtimeError] = useState<string | null>(null);
+  const [activeTranscriber, setActiveTranscriber] = useState<
+    "realtime" | "fallback" | null
+  >(null);
 
   const stateRef = useRef<VoiceState>("idle");
   const mutedRef = useRef(false);
@@ -280,7 +284,8 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
       }
     },
     onError: (err) => {
-      setRealtimeError(err.message);
+      const info = normalizeVoiceError(err);
+      setRealtimeError(`${info.message} ${info.action}`);
     },
   });
 
@@ -304,7 +309,8 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
       }
     },
     onError: (err) => {
-      setRealtimeError(err.message);
+      const info = normalizeVoiceError(err);
+      setRealtimeError(`${info.message} ${info.action}`);
     },
   });
 
@@ -387,24 +393,26 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     try {
       await realtime.connect(preStream ?? undefined);
       activeTranscriberRef.current = "realtime";
+      setActiveTranscriber("realtime");
       setStateSync("listening");
     } catch (err) {
       console.warn("Realtime failed, trying VAD+Whisper fallback:", err);
-      setRealtimeError(
-        err instanceof Error ? err.message : "Realtime failed"
+      const realtimeInfo = normalizeVoiceError(
+        err instanceof Error ? err : "Realtime failed"
       );
+      setRealtimeError(`${realtimeInfo.message} ${realtimeInfo.action}`);
       try {
         await fallback.connect(preStream ?? undefined);
         activeTranscriberRef.current = "fallback";
+        setActiveTranscriber("fallback");
         setRealtimeError(null);
         setStateSync("listening");
       } catch (fallbackErr) {
         console.error("Fallback transcription failed:", fallbackErr);
-        setRealtimeError(
-          fallbackErr instanceof Error
-            ? fallbackErr.message
-            : "Voice failed"
+        const fallbackInfo = normalizeVoiceError(
+          fallbackErr instanceof Error ? fallbackErr : "Voice failed"
         );
+        setRealtimeError(`${fallbackInfo.message} ${fallbackInfo.action}`);
         startedRef.current = false;
         setStateSync("idle");
       }
@@ -454,11 +462,68 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     }
   }, [playQueue]);
 
+  const reconnect = useCallback(async () => {
+    setRealtimeError(null);
+    ensureAudioCtx();
+
+    const tryConnect = async () => {
+      const active = activeTranscriberRef.current;
+      if (active === "realtime") {
+        try {
+          await realtime.connect(undefined);
+          setActiveTranscriber("realtime");
+          setStateSync("listening");
+          return;
+        } catch (err) {
+          console.warn("Realtime reconnect failed, trying fallback:", err);
+          try {
+            await fallback.connect(undefined);
+            activeTranscriberRef.current = "fallback";
+            setActiveTranscriber("fallback");
+            setStateSync("listening");
+            return;
+          } catch (fallbackErr) {
+            const info = normalizeVoiceError(
+              fallbackErr instanceof Error ? fallbackErr : "Voice failed"
+            );
+            setRealtimeError(`${info.message} ${info.action}`);
+          }
+        }
+      } else if (active === "fallback") {
+        try {
+          await fallback.connect(undefined);
+          setStateSync("listening");
+          return;
+        } catch (err) {
+          console.warn("Fallback reconnect failed, trying realtime:", err);
+          try {
+            await realtime.connect(undefined);
+            activeTranscriberRef.current = "realtime";
+            setActiveTranscriber("realtime");
+            setStateSync("listening");
+            return;
+          } catch (realtimeErr) {
+            const info = normalizeVoiceError(
+              realtimeErr instanceof Error ? realtimeErr : "Voice failed"
+            );
+            setRealtimeError(`${info.message} ${info.action}`);
+          }
+        }
+      } else {
+        startedRef.current = false;
+        await start();
+      }
+    };
+
+    await tryConnect();
+  }, [ensureAudioCtx, realtime, fallback, start, setStateSync]);
+
   const cleanup = useCallback(() => {
     interrupt();
     realtime.disconnect();
     fallback.disconnect();
     activeTranscriberRef.current = null;
+    setActiveTranscriber(null);
     const externalCtx = optionsRef.current.audioContextRef?.current;
     if (audioCtxRef.current && audioCtxRef.current !== externalCtx) {
       audioCtxRef.current.close();
@@ -481,7 +546,9 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     toggleMute,
     togglePause,
     start,
+    reconnect,
     cleanup,
     realtimeError,
+    activeTranscriber,
   };
 }
