@@ -149,7 +149,7 @@ export default function SessionPage() {
     newTopicName,
     chatBody,
     sendMessage,
-    voice,
+    voice.start,
   ]);
 
   function handleReinforce() {

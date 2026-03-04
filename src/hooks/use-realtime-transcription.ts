@@ -60,8 +60,12 @@ export function useRealtimeTranscription(
           autoGainControl: true,
         },
       });
+      const track = stream.getTracks()[0];
+      if (!track) {
+        throw new Error("No audio track available");
+      }
       streamRef.current = stream;
-      pc.addTrack(stream.getTracks()[0]);
+      pc.addTrack(track);
 
       const dc = pc.createDataChannel("oai-events");
       dataChannelRef.current = dc;
@@ -128,7 +132,18 @@ export function useRealtimeTranscription(
 
       tokenRefreshTimerRef.current = setTimeout(() => {
         disconnect();
-        connect(undefined);
+        connect(undefined).catch((refreshErr) => {
+          const msg =
+            refreshErr instanceof Error
+              ? refreshErr.message
+              : "Reconnect failed";
+          setError(`Session expired. Tap mute then unmute to reconnect. (${msg})`);
+          setIsConnected(false);
+          optionsRef.current.onConnectionStateChange?.("failed");
+          optionsRef.current.onError?.(
+            refreshErr instanceof Error ? refreshErr : new Error(msg)
+          );
+        });
       }, TOKEN_REFRESH_MS);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Connection failed";

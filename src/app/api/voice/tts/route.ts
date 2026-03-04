@@ -1,10 +1,14 @@
 export const maxDuration = 30;
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY!;
 const DEFAULT_VOICE_ID = "aMdQCEO9kwP77QH1DiFy";
 
 export async function POST(req: Request) {
   try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      return new Response("ELEVENLABS_API_KEY not configured", { status: 500 });
+    }
+
     const { text, voiceId } = await req.json();
 
     if (!text || typeof text !== "string") {
@@ -18,7 +22,7 @@ export async function POST(req: Request) {
       {
         method: "POST",
         headers: {
-          "xi-api-key": ELEVENLABS_API_KEY,
+          "xi-api-key": apiKey,
           "Content-Type": "application/json",
           Accept: "audio/mpeg",
         },
