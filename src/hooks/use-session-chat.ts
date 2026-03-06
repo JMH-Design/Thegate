@@ -1,8 +1,6 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
 import { useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Topic, UserProfile, SessionSummary } from "@/lib/types";

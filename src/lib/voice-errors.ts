@@ -91,16 +91,6 @@ export function normalizeVoiceError(raw: string | Error): VoiceErrorInfo {
   };
 }
 
-export function isMicDenialError(raw: string | Error): boolean {
-  const str = typeof raw === "string" ? raw : raw.message;
-  return matchesAny(str, MIC_PATTERNS);
-}
-
-export function isTokenExpiryError(raw: string | Error): boolean {
-  const str = typeof raw === "string" ? raw : raw.message;
-  return matchesAny(str, TOKEN_EXPIRY_PATTERNS);
-}
-
 export type VoiceErrorCategory =
   | "network"
   | "auth"
