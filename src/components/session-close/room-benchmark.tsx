@@ -1,4 +1,5 @@
-import { Benchmark, DepthLevel, DEPTH_LABELS } from "@/lib/types";
+import { Benchmark, DepthLevel, DEPTH_LABELS, getRoomPosition } from "@/lib/types";
+import { SectionHeader } from "@/components/ui/section-header";
 
 interface RoomBenchmarkProps {
   userLevel: DepthLevel;
@@ -8,18 +9,11 @@ interface RoomBenchmarkProps {
 export function RoomBenchmark({ userLevel, benchmark }: RoomBenchmarkProps) {
   if (!benchmark) return null;
 
-  const position =
-    userLevel > benchmark.benchmark_level
-      ? "ahead"
-      : userLevel === benchmark.benchmark_level
-        ? "at_par"
-        : "below";
+  const position = getRoomPosition(userLevel, benchmark.benchmark_level);
 
   return (
     <div className="py-6">
-      <h3 className="text-xs text-text-dim uppercase tracking-widest font-semibold mb-4">
-        The Room
-      </h3>
+      <SectionHeader>The Room</SectionHeader>
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
           <span className="text-text-secondary">{benchmark.description}</span>

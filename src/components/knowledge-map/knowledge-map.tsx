@@ -7,7 +7,7 @@ import {
   UserProfile,
   TopicWithBenchmark,
   DepthLevel,
-  RoomPosition,
+  getRoomPosition,
 } from "@/lib/types";
 import { TopicCard } from "./topic-card";
 import { PackMap } from "./pack-map";
@@ -22,15 +22,6 @@ interface KnowledgeMapProps {
   topics: Topic[];
   benchmarks: Benchmark[];
   userEmail: string;
-}
-
-function getRoomPosition(
-  userLevel: DepthLevel,
-  benchmarkLevel: DepthLevel
-): RoomPosition {
-  if (userLevel > benchmarkLevel) return "ahead";
-  if (userLevel === benchmarkLevel) return "at_par";
-  return "below";
 }
 
 function enrichTopics(

@@ -1,4 +1,5 @@
 import { SessionSummary as SessionSummaryType } from "@/lib/types";
+import { SectionHeader } from "@/components/ui/section-header";
 import { Volume2, Pause, Play } from "lucide-react";
 
 interface SessionSummaryProps {
@@ -47,9 +48,7 @@ export function SessionSummaryView({
 
       {summary.what_covered.length > 0 && (
         <div>
-          <h3 className="text-xs text-text-dim uppercase tracking-widest font-semibold mb-3">
-            What You Built Today
-          </h3>
+          <SectionHeader className="mb-3">What You Built Today</SectionHeader>
           <ul className="space-y-1.5">
             {summary.what_covered.map((item, i) => (
               <li key={i} className="text-sm text-text-secondary flex items-start gap-2">
@@ -63,9 +62,7 @@ export function SessionSummaryView({
 
       {summary.what_correct?.length > 0 && (
         <div>
-          <h3 className="text-xs text-text-dim uppercase tracking-widest font-semibold mb-3">
-            What You Got Right
-          </h3>
+          <SectionHeader className="mb-3">What You Got Right</SectionHeader>
           <ul className="space-y-1.5">
             {summary.what_correct.map((item, i) => (
               <li key={i} className="text-sm text-text-secondary flex items-start gap-2">
@@ -79,9 +76,7 @@ export function SessionSummaryView({
 
       {summary.where_broke_down.length > 0 && (
         <div>
-          <h3 className="text-xs text-text-dim uppercase tracking-widest font-semibold mb-3">
-            Where You Broke Down
-          </h3>
+          <SectionHeader className="mb-3">Where You Broke Down</SectionHeader>
           <ul className="space-y-1.5">
             {summary.where_broke_down.map((item, i) => (
               <li key={i} className="text-sm text-text-secondary flex items-start gap-2">
@@ -95,9 +90,7 @@ export function SessionSummaryView({
 
       {(summary.current_level_description || summary.next_level_requires) && (
         <div>
-          <h3 className="text-xs text-text-dim uppercase tracking-widest font-semibold mb-3">
-            Where You Are Now
-          </h3>
+          <SectionHeader className="mb-3">Where You Are Now</SectionHeader>
           <p className="text-sm text-text-secondary leading-relaxed">
             {summary.current_level_description}
             {summary.current_level_description && summary.next_level_requires && " "}
@@ -112,9 +105,7 @@ export function SessionSummaryView({
 
       {summary.core_concepts && summary.core_concepts.length > 0 && (
         <div>
-          <h3 className="text-xs text-text-dim uppercase tracking-widest font-semibold mb-3">
-            Core Concepts to Lock In
-          </h3>
+          <SectionHeader className="mb-3">Core Concepts to Lock In</SectionHeader>
           <ul className="space-y-1.5">
             {summary.core_concepts.map((item, i) => (
               <li key={i} className="text-sm text-text-secondary flex items-start gap-2">
@@ -128,9 +119,7 @@ export function SessionSummaryView({
 
       {summary.next_session_focus.length > 0 && (
         <div>
-          <h3 className="text-xs text-text-dim uppercase tracking-widest font-semibold mb-3">
-            Next Session
-          </h3>
+          <SectionHeader className="mb-3">Next Session</SectionHeader>
           <ul className="space-y-1.5">
             {summary.next_session_focus.map((item, i) => (
               <li key={i} className="text-sm text-text-secondary flex items-start gap-2">

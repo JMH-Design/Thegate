@@ -1,4 +1,4 @@
-import { Topic, TopicStatus, DepthLevel } from "@/lib/types";
+import { Topic, TopicStatus, DepthLevel, STATUS_LABELS } from "@/lib/types";
 
 export interface PackNode {
   name: string;
@@ -12,11 +12,6 @@ export interface PackNode {
 }
 
 const STATUS_ORDER: TopicStatus[] = ["strong", "developing", "needs_review"];
-const STATUS_LABELS: Record<TopicStatus, string> = {
-  strong: "Strong",
-  developing: "Developing",
-  needs_review: "Needs Review",
-};
 
 export function buildPackHierarchy(topics: Topic[]): PackNode {
   const groups = new Map<TopicStatus, PackNode[]>();

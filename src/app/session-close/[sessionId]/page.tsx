@@ -12,6 +12,7 @@ import {
 } from "@/components/session-close/session-summary";
 import { SelfTest } from "@/components/session-close/self-test";
 import { Button } from "@/components/ui/button";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useTTSPlayback } from "@/hooks/use-tts-playback";
 
 export default function SessionClosePage() {
@@ -94,7 +95,7 @@ export default function SessionClosePage() {
   if (loading || !session) {
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-gold border-t-transparent animate-spin" />
+        <LoadingSpinner />
       </div>
     );
   }

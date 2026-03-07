@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { TopicWithBenchmark, DEPTH_LABELS } from "@/lib/types";
+import { TopicWithBenchmark, DEPTH_LABELS, STATUS_LABELS } from "@/lib/types";
+import { formatLastTestedDate } from "@/lib/date-utils";
 import { DepthBadge } from "./depth-badge";
 import { RoomMarker } from "./room-marker";
 import { Card } from "@/components/ui/card";
@@ -11,29 +12,10 @@ interface TopicCardProps {
   topic: TopicWithBenchmark;
 }
 
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "Never tested";
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
 const statusStyles = {
   needs_review: "text-amber-400 bg-amber-400/10",
   developing: "text-gold bg-gold/10",
   strong: "text-success bg-success/10",
-};
-
-const statusLabels = {
-  needs_review: "Needs Review",
-  developing: "Developing",
-  strong: "Strong",
 };
 
 export function TopicCard({ topic }: TopicCardProps) {
@@ -53,7 +35,7 @@ export function TopicCard({ topic }: TopicCardProps) {
           <span
             className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${statusStyles[topic.status]}`}
           >
-            {statusLabels[topic.status]}
+            {STATUS_LABELS[topic.status]}
           </span>
         </div>
 
@@ -66,7 +48,7 @@ export function TopicCard({ topic }: TopicCardProps) {
             />
           )}
           <span className="text-text-dim text-xs">
-            {formatDate(topic.last_tested_at)}
+            {formatLastTestedDate(topic.last_tested_at, "Never tested")}
           </span>
         </div>
 

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildAnalysisPrompt } from "@/lib/prompts/analysis";
 import { SessionAnalysis, DepthLevel } from "@/lib/types";
 import { clearCachedMessages } from "@/lib/cache/conversation-context";
+import { stripJsonMarkdown } from "@/lib/utils";
 
 export async function POST(req: Request) {
   const { topicId, topicName, transcript, previousLevel } = await req.json();
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
 
   let analysis: SessionAnalysis;
   try {
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const cleaned = stripJsonMarkdown(text);
     analysis = JSON.parse(cleaned);
   } catch {
     analysis = {

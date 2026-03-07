@@ -2,6 +2,7 @@ import { streamText, generateText, convertToModelMessages, UIMessage } from "ai"
 import { anthropic } from "@ai-sdk/anthropic";
 import { FTUE_SYSTEM_PROMPT, FTUE_EXTRACTION_PROMPT } from "@/lib/prompts/ftue-system";
 import { createClient } from "@/lib/supabase/server";
+import { stripJsonMarkdown } from "@/lib/utils";
 
 export const maxDuration = 60;
 
@@ -43,10 +44,7 @@ export async function POST(req: Request) {
 
     let profile;
     try {
-      const cleaned = text
-        .replace(/```json\n?/g, "")
-        .replace(/```\n?/g, "")
-        .trim();
+      const cleaned = stripJsonMarkdown(text);
       profile = JSON.parse(cleaned);
     } catch {
       profile = { role: "Unknown", gap: "Unknown" };

@@ -18,6 +18,7 @@ import { useVoiceSession } from "@/hooks/use-voice-session";
 import { useSessionData, useInvalidateSessionData } from "@/hooks/use-session-chat";
 import { takePreAcquiredStream } from "@/lib/voice-pre-session";
 import { Mic } from "lucide-react";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 export default function SessionPage() {
   const params = useParams();
@@ -284,7 +285,7 @@ export default function SessionPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-gold border-t-transparent animate-spin" />
+        <LoadingSpinner />
       </div>
     );
   }

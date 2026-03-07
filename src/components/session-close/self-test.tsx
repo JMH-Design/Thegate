@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SelfTestQuestion } from "@/lib/types";
+import { SectionHeader } from "@/components/ui/section-header";
 
 interface SelfTestProps {
   questions: SelfTestQuestion[];
@@ -14,9 +15,7 @@ export function SelfTest({ questions }: SelfTestProps) {
 
   return (
     <div className="py-6">
-      <h3 className="text-xs text-text-dim uppercase tracking-widest font-semibold mb-4">
-        Self-Test Before Next Session
-      </h3>
+      <SectionHeader>Self-Test Before Next Session</SectionHeader>
       <div className="space-y-4">
         {questions.map((q, i) => (
           <div key={i} className="bg-bg-secondary rounded-[--radius-card] p-4">

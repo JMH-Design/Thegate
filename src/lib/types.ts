@@ -10,6 +10,12 @@ export const DEPTH_LABELS: Record<DepthLevel, string> = {
 
 export type TopicStatus = "needs_review" | "developing" | "strong";
 
+export const STATUS_LABELS: Record<TopicStatus, string> = {
+  needs_review: "Needs Review",
+  developing: "Developing",
+  strong: "Strong",
+};
+
 export type GapType =
   | "vocabulary_confusion"
   | "conceptual_gap"
@@ -94,6 +100,15 @@ export interface Benchmark {
 }
 
 export type RoomPosition = "ahead" | "at_par" | "below";
+
+export function getRoomPosition(
+  userLevel: DepthLevel,
+  benchmarkLevel: DepthLevel
+): RoomPosition {
+  if (userLevel > benchmarkLevel) return "ahead";
+  if (userLevel === benchmarkLevel) return "at_par";
+  return "below";
+}
 
 export interface TopicWithBenchmark extends Topic {
   benchmark?: Benchmark | null;

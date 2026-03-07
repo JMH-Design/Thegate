@@ -1,4 +1,5 @@
 import { DepthLevel, DEPTH_LABELS } from "@/lib/types";
+import { SectionHeader } from "@/components/ui/section-header";
 
 interface LevelProgressionProps {
   before: DepthLevel;
@@ -11,9 +12,7 @@ export function LevelProgression({ before, after }: LevelProgressionProps) {
 
   return (
     <div className="py-6">
-      <h3 className="text-xs text-text-dim uppercase tracking-widest font-semibold mb-4">
-        Level Progression
-      </h3>
+      <SectionHeader>Level Progression</SectionHeader>
       <div className="flex items-center gap-4">
         <div className="text-center">
           <span className="block text-3xl font-bold text-text-muted">{before}</span>

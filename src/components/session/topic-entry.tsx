@@ -1,4 +1,5 @@
 import { Topic, DEPTH_LABELS } from "@/lib/types";
+import { formatLastTestedDate } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 
 interface ReturningTopicEntryProps {
@@ -12,12 +13,7 @@ export function ReturningTopicEntry({
   onReinforce,
   onGoDeeper,
 }: ReturningTopicEntryProps) {
-  const lastTested = topic.last_tested_at
-    ? new Date(topic.last_tested_at).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })
-    : "Never";
+  const lastTested = formatLastTestedDate(topic.last_tested_at);
 
   return (
     <div className="max-w-lg mx-auto text-center py-16 px-6">
