@@ -6,12 +6,16 @@ interface ReturningTopicEntryProps {
   topic: Topic;
   onReinforce: () => void;
   onGoDeeper: () => void;
+  connecting?: boolean;
+  connectingError?: string | null;
 }
 
 export function ReturningTopicEntry({
   topic,
   onReinforce,
   onGoDeeper,
+  connecting = false,
+  connectingError = null,
 }: ReturningTopicEntryProps) {
   const lastTested = formatLastTestedDate(topic.last_tested_at);
 
@@ -41,12 +45,23 @@ export function ReturningTopicEntry({
         </div>
       )}
 
+      {connectingError && (
+        <p className="mb-4 text-sm text-danger">{connectingError}</p>
+      )}
       <div className="flex gap-3 justify-center">
-        <Button variant="secondary" onClick={onReinforce}>
-          Reinforce
+        <Button
+          variant="secondary"
+          onClick={onReinforce}
+          disabled={connecting}
+        >
+          {connecting ? "Connecting..." : "Reinforce"}
         </Button>
-        <Button variant="primary" onClick={onGoDeeper}>
-          Go deeper →
+        <Button
+          variant="primary"
+          onClick={onGoDeeper}
+          disabled={connecting}
+        >
+          {connecting ? "Connecting..." : "Go deeper →"}
         </Button>
       </div>
     </div>

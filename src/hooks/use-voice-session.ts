@@ -415,6 +415,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
         setRealtimeError(`${fallbackInfo.message} ${fallbackInfo.action}`);
         startedRef.current = false;
         setStateSync("idle");
+        throw fallbackErr;
       }
     }
   }, [ensureAudioCtx, realtime, fallback, setStateSync]);

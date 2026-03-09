@@ -29,6 +29,8 @@ export default function SessionPage() {
   const newTopicName = searchParams.get("topic") || "";
 
   const [started, setStarted] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [connectingError, setConnectingError] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
   const [voiceMode, setVoiceMode] = useState(true);
 
@@ -117,31 +119,45 @@ export default function SessionPage() {
 
   useEffect(() => {
     if (
-      isNew &&
-      !loading &&
-      !hasAutoStarted.current &&
-      messages.length === 0 &&
-      !isStreaming &&
-      newTopicName
+      !isNew ||
+      loading ||
+      hasAutoStarted.current ||
+      messages.length > 0 ||
+      isStreaming ||
+      !newTopicName
     ) {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContext();
-        audioContextRef.current.resume();
-      }
-      preAcquiredStreamRef.current = takePreAcquiredStream();
-      hasAutoStarted.current = true;
-      setStarted(true);
-      voice.start();
-      sendMessage(
-        { text: "__START_SESSION__" },
-        {
-          body: {
-            ...chatBody,
-            isNewTopic: true,
-          },
-        }
-      );
+      return;
     }
+    hasAutoStarted.current = true;
+    setConnecting(true);
+    setConnectingError(null);
+
+    (async () => {
+      try {
+        if (!audioContextRef.current) {
+          audioContextRef.current = new AudioContext();
+          audioContextRef.current.resume();
+        }
+        preAcquiredStreamRef.current = takePreAcquiredStream();
+        await voice.start();
+        setStarted(true);
+        sendMessage(
+          { text: "__START_SESSION__" },
+          {
+            body: {
+              ...chatBody,
+              isNewTopic: true,
+            },
+          }
+        );
+      } catch (err) {
+        setConnectingError(
+          err instanceof Error ? err.message : "Voice connection failed"
+        );
+      } finally {
+        setConnecting(false);
+      }
+    })();
   }, [
     isNew,
     loading,
@@ -153,42 +169,64 @@ export default function SessionPage() {
     voice.start,
   ]);
 
-  function handleReinforce() {
+  async function handleReinforce() {
+    if (connecting) return;
+    setConnecting(true);
+    setConnectingError(null);
     if (!audioContextRef.current) {
       audioContextRef.current = new AudioContext();
       audioContextRef.current.resume();
     }
-    voice.start();
-    setStarted(true);
-    sendMessage(
-      { text: "__START_SESSION__" },
-      {
-        body: {
-          ...chatBody,
-          isNewTopic: false,
-          sessionIntent: "reinforce",
-        },
-      }
-    );
+    try {
+      await voice.start();
+      setStarted(true);
+      sendMessage(
+        { text: "__START_SESSION__" },
+        {
+          body: {
+            ...chatBody,
+            isNewTopic: false,
+            sessionIntent: "reinforce",
+          },
+        }
+      );
+    } catch (err) {
+      setConnectingError(
+        err instanceof Error ? err.message : "Voice connection failed"
+      );
+    } finally {
+      setConnecting(false);
+    }
   }
 
-  function handleGoDeeper() {
+  async function handleGoDeeper() {
+    if (connecting) return;
+    setConnecting(true);
+    setConnectingError(null);
     if (!audioContextRef.current) {
       audioContextRef.current = new AudioContext();
       audioContextRef.current.resume();
     }
-    voice.start();
-    setStarted(true);
-    sendMessage(
-      { text: "__START_SESSION__" },
-      {
-        body: {
-          ...chatBody,
-          isNewTopic: false,
-          sessionIntent: "go_deeper",
-        },
-      }
-    );
+    try {
+      await voice.start();
+      setStarted(true);
+      sendMessage(
+        { text: "__START_SESSION__" },
+        {
+          body: {
+            ...chatBody,
+            isNewTopic: false,
+            sessionIntent: "go_deeper",
+          },
+        }
+      );
+    } catch (err) {
+      setConnectingError(
+        err instanceof Error ? err.message : "Voice connection failed"
+      );
+    } finally {
+      setConnecting(false);
+    }
   }
 
   function handleSend() {
@@ -304,6 +342,8 @@ export default function SessionPage() {
           topic={topic}
           onReinforce={handleReinforce}
           onGoDeeper={handleGoDeeper}
+          connecting={connecting}
+          connectingError={connectingError}
         />
       </div>
     );

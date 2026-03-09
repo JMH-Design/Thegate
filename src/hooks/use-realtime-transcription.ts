@@ -23,6 +23,7 @@ interface UseRealtimeTranscriptionOptions {
 }
 
 const TOKEN_REFRESH_MS = 45_000;
+const FETCH_TIMEOUT_MS = 25_000;
 
 export function useRealtimeTranscription(
   options: UseRealtimeTranscriptionOptions
@@ -41,29 +42,40 @@ export function useRealtimeTranscription(
   const partialBufferRef = useRef("");
 
   const connect = useCallback(async (preAcquiredStream?: MediaStream | null) => {
+    let stream: MediaStream | null = null;
     try {
       optionsRef.current.onConnectionStateChange?.("connecting");
       setError(null);
 
+      // Acquire mic FIRST, before any await — browsers (especially iOS) require
+      // getUserMedia within the user gesture context. Awaiting the token fetch
+      // consumes the gesture; mic acquisition would then fail or hang.
+      stream =
+        preAcquiredStream ??
+        (await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        }));
+
+      const tokenCtrl = new AbortController();
+      const tokenTimeout = setTimeout(() => tokenCtrl.abort(), FETCH_TIMEOUT_MS);
       const tokenRes = await fetch("/api/voice/realtime-token", {
         method: "POST",
+        signal: tokenCtrl.signal,
       });
+      clearTimeout(tokenTimeout);
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
+        stream.getTracks().forEach((t) => t.stop());
         throw new Error(`Token failed: ${errText}`);
       }
       const { token } = (await tokenRes.json()) as { token: string };
 
       const pc = new RTCPeerConnection();
       pcRef.current = pc;
-
-      const stream = preAcquiredStream ?? await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
       const track = stream.getTracks()[0];
       if (!track) {
         throw new Error("No audio track available");
@@ -114,6 +126,8 @@ export function useRealtimeTranscription(
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
+      const sdpCtrl = new AbortController();
+      const sdpTimeout = setTimeout(() => sdpCtrl.abort(), FETCH_TIMEOUT_MS);
       const sdpRes = await fetch("https://api.openai.com/v1/realtime/calls", {
         method: "POST",
         headers: {
@@ -121,7 +135,9 @@ export function useRealtimeTranscription(
           "Content-Type": "application/sdp",
         },
         body: offer.sdp ?? "",
+        signal: sdpCtrl.signal,
       });
+      clearTimeout(sdpTimeout);
 
       if (!sdpRes.ok) {
         const errText = await sdpRes.text();
@@ -143,6 +159,9 @@ export function useRealtimeTranscription(
         optionsRef.current.onError?.(new Error("Session expired"));
       }, TOKEN_REFRESH_MS);
     } catch (err) {
+      if (stream && !preAcquiredStream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
       const raw = err instanceof Error ? err.message : "Connection failed";
       const category = classifyVoiceError(raw);
       if (typeof console !== "undefined" && console.warn) {
