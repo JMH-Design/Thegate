@@ -287,6 +287,11 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
       const info = normalizeVoiceError(err);
       setRealtimeError(`${info.message} ${info.action}`);
     },
+    onConnectionStateChange: (state) => {
+      if (state === "connected" && startedRef.current) {
+        setStateSync("listening");
+      }
+    },
   });
 
   const fallback = useVadWhisperTranscription({
@@ -311,6 +316,11 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     onError: (err) => {
       const info = normalizeVoiceError(err);
       setRealtimeError(`${info.message} ${info.action}`);
+    },
+    onConnectionStateChange: (state) => {
+      if (state === "connected" && startedRef.current) {
+        setStateSync("listening");
+      }
     },
   });
 
