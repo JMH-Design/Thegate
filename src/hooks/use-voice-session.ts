@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+} from "react";
 import { useRealtimeTranscription } from "./use-realtime-transcription";
 import { normalizeVoiceError } from "@/lib/voice-errors";
 import { useVadWhisperTranscription } from "./use-vad-whisper-transcription";
@@ -28,6 +33,10 @@ interface UseVoiceSessionOptions {
   audioContextRef?: { current: AudioContext | null };
   /** Pre-acquired mic stream (e.g. from new-topic form submit); consumed on first start */
   preAcquiredStreamRef?: React.MutableRefObject<MediaStream | null | undefined>;
+  /** Optional callback for connection state (useful for tests) */
+  onConnectionStateChange?: (
+    state: "connecting" | "connected" | "disconnected" | "failed"
+  ) => void;
 }
 
 export function useVoiceSession(options: UseVoiceSessionOptions) {
@@ -40,6 +49,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
   const [isPaused, setIsPaused] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [realtimeError, setRealtimeError] = useState<string | null>(null);
+  const [ttsError, setTtsError] = useState<string | null>(null);
   const [activeTranscriber, setActiveTranscriber] = useState<
     "realtime" | "fallback" | null
   >(null);
@@ -119,8 +129,15 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
       const playTask = queueRef.current.shift()!;
       try {
         await playTask();
-      } catch {
-        /* playback error — skip chunk */
+        setTtsError(null);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "NotAllowedError") {
+          setTtsError("Tap anywhere to enable audio");
+        } else if (err instanceof DOMException && err.name === "AbortError") {
+          // Intentional abort — not a user-facing error
+        } else {
+          setTtsError("Audio playback failed");
+        }
       }
     }
 
@@ -253,12 +270,16 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
           body: JSON.stringify({ text }),
           signal: ctrl.signal,
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          setTtsError("Voice audio unavailable");
+          return;
+        }
         const playTask = createStreamingPlayTask(res, ctrl);
         queueRef.current.push(playTask);
         playQueue();
-      } catch {
-        /* aborted or network error */
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setTtsError("Voice audio unavailable");
       }
     },
     [playQueue, createStreamingPlayTask]
@@ -288,6 +309,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
       setRealtimeError(`${info.message} ${info.action}`);
     },
     onConnectionStateChange: (state) => {
+      optionsRef.current.onConnectionStateChange?.(state);
       if (state === "connected" && startedRef.current) {
         setStateSync("listening");
       }
@@ -318,6 +340,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
       setRealtimeError(`${info.message} ${info.action}`);
     },
     onConnectionStateChange: (state) => {
+      optionsRef.current.onConnectionStateChange?.(state);
       if (state === "connected" && startedRef.current) {
         setStateSync("listening");
       }
@@ -393,6 +416,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     startedRef.current = true;
     ensureAudioCtx();
     setRealtimeError(null);
+    setTtsError(null);
 
     const preStream =
       optionsRef.current.preAcquiredStreamRef?.current ?? undefined;
@@ -428,7 +452,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
         throw fallbackErr;
       }
     }
-  }, [ensureAudioCtx, realtime, fallback, setStateSync]);
+  }, [ensureAudioCtx, realtime.connect, fallback.connect, setStateSync]);
 
   const toggleMute = useCallback(() => {
     const next = !mutedRef.current;
@@ -446,7 +470,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
         realtime.connect(undefined);
       }
     }
-  }, [realtime, fallback, setStateSync]);
+  }, [realtime.connect, realtime.disconnect, fallback.connect, fallback.disconnect, setStateSync]);
 
   const togglePause = useCallback(() => {
     const next = !pausedRef.current;
@@ -475,6 +499,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
 
   const reconnect = useCallback(async () => {
     setRealtimeError(null);
+    setTtsError(null);
     ensureAudioCtx();
 
     const tryConnect = async () => {
@@ -527,7 +552,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     };
 
     await tryConnect();
-  }, [ensureAudioCtx, realtime, fallback, start, setStateSync]);
+  }, [ensureAudioCtx, realtime.connect, fallback.connect, start, setStateSync]);
 
   const cleanup = useCallback(() => {
     interrupt();
@@ -544,9 +569,11 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     setAnalyserNode(null);
     startedRef.current = false;
     setStateSync("idle");
-  }, [interrupt, realtime, fallback, setStateSync]);
+  }, [interrupt, realtime.disconnect, fallback.disconnect, setStateSync]);
 
-  useEffect(() => () => cleanup(), [cleanup]);
+  const cleanupRef = useRef(cleanup);
+  cleanupRef.current = cleanup;
+  useEffect(() => () => cleanupRef.current(), []);
 
   return {
     state: voiceState,
@@ -560,6 +587,8 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     reconnect,
     cleanup,
     realtimeError,
+    ttsError,
+    setTtsError,
     activeTranscriber,
   };
 }

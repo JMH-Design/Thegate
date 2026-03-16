@@ -14,7 +14,7 @@ import { PackMap } from "./pack-map";
 import { Plus, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
-import { setPreAcquiredStream } from "@/lib/voice-pre-session";
+import { setPreAcquiredStream, setPreAcquiredAudioContext } from "@/lib/voice-pre-session";
 import { useState } from "react";
 
 interface KnowledgeMapProps {
@@ -77,6 +77,9 @@ export function KnowledgeMap({
         },
       });
       setPreAcquiredStream(stream);
+      const audioCtx = new AudioContext();
+      await audioCtx.resume();
+      setPreAcquiredAudioContext(audioCtx);
       router.push(`/session/new?topic=${encodeURIComponent(newTopic.trim())}`);
     } catch {
       setMicDenied(true);
@@ -94,6 +97,9 @@ export function KnowledgeMap({
         },
       });
       setPreAcquiredStream(stream);
+      const audioCtx = new AudioContext();
+      await audioCtx.resume();
+      setPreAcquiredAudioContext(audioCtx);
       router.push(`/session/new?topic=${encodeURIComponent(newTopic.trim())}`);
     } catch {
       setMicDenied(true);

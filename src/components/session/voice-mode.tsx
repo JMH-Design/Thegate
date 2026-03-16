@@ -17,12 +17,14 @@ interface VoiceModeProps {
   topicName: string;
   sessionNumber: number;
   voiceError: string | null;
+  ttsError?: string | null;
   activeTranscriber?: "realtime" | "fallback" | null;
   onToggleMute: () => void;
   onTogglePause: () => void;
   onEnd: () => void;
   onSwitchToText: () => void;
   onReconnect?: () => void;
+  onDismissTtsError?: () => void;
 }
 
 export function VoiceMode({
@@ -36,12 +38,14 @@ export function VoiceMode({
   topicName,
   sessionNumber,
   voiceError,
+  ttsError,
   activeTranscriber,
   onToggleMute,
   onTogglePause,
   onEnd,
   onSwitchToText,
   onReconnect,
+  onDismissTtsError,
 }: VoiceModeProps) {
   return (
     <div className="flex-1 flex flex-col">
@@ -78,6 +82,14 @@ export function VoiceMode({
                 </button>
               )}
             </div>
+          )}
+          {ttsError && !voiceError && (
+            <button
+              onClick={onDismissTtsError}
+              className="flex flex-col items-center gap-1 max-w-xs"
+            >
+              <p className="text-xs text-yellow-400 text-center">{ttsError}</p>
+            </button>
           )}
         </div>
       </div>

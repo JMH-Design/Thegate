@@ -16,7 +16,7 @@ import {
 import { VoiceMode } from "@/components/session/voice-mode";
 import { useVoiceSession } from "@/hooks/use-voice-session";
 import { useSessionData, useInvalidateSessionData } from "@/hooks/use-session-chat";
-import { takePreAcquiredStream } from "@/lib/voice-pre-session";
+import { takePreAcquiredStream, takePreAcquiredAudioContext } from "@/lib/voice-pre-session";
 import { Mic } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
@@ -135,8 +135,8 @@ export default function SessionPage() {
     (async () => {
       try {
         if (!audioContextRef.current) {
-          audioContextRef.current = new AudioContext();
-          audioContextRef.current.resume();
+          audioContextRef.current = takePreAcquiredAudioContext() ?? new AudioContext();
+          await audioContextRef.current.resume();
         }
         preAcquiredStreamRef.current = takePreAcquiredStream();
         await voice.start();
@@ -382,12 +382,17 @@ export default function SessionPage() {
           topicName={displayName}
           sessionNumber={sessionCount}
           voiceError={voice.realtimeError}
+          ttsError={voice.ttsError}
           activeTranscriber={voice.activeTranscriber}
           onToggleMute={voice.toggleMute}
           onTogglePause={voice.togglePause}
           onEnd={handleEndSession}
           onSwitchToText={handleSwitchToText}
           onReconnect={voice.reconnect}
+          onDismissTtsError={() => {
+            audioContextRef.current?.resume();
+            voice.setTtsError(null);
+          }}
         />
       ) : (
         <>
