@@ -32,7 +32,7 @@ The Gate is a voice-first coaching app that audits your understanding of any top
 
 - **Signup** (`/signup`): Email + password. Creates Supabase auth user and `users` row.
 - **Login** (`/login`): Authenticates via Supabase Auth.
-- **Middleware**: Refreshes session on each request; redirects unauthenticated users to `/login`.
+- **Middleware**: Refreshes session on each request; redirects unauthenticated users to `/login`. Redirects authenticated users without a profile to `/onboarding`. API routes are exempt from profile-check redirects so onboarding chat can function.
 
 ### 2. Onboarding (First-Time User Experience)
 
@@ -46,12 +46,13 @@ The Gate is a voice-first coaching app that audits your understanding of any top
 - **Route:** `/`
 - **Data:** Topics (user's topics), benchmarks (public reference data), user profile.
 - **UI:**
-  - List of topic cards with depth level, status (needs_review / developing / strong), last tested date, mental model snippet.
+  - List of topic cards with depth level (badge), status (needs_review / developing / strong), last tested date, mental model snippet, room benchmark marker.
   - "New Topic" button opens a form.
+  - **Visualization modes:** PackMap (D3 zoomable circle pack) and CanvasMap (2D force graph with topic connections) are implemented but currently hidden; the list view is active.
 - **New Topic Flow:**
   - User types a topic and clicks "Start" or presses Enter.
-  - `getUserMedia` is called (user gesture) to pre-acquire the microphone.
-  - Stream is stored in `voice-pre-session.ts`; user is navigated to `/session/new?topic=...`.
+  - `getUserMedia` and `AudioContext` are created during the submit (user gesture) to pre-acquire the microphone and avoid autoplay rejection.
+  - Stream and context are stored in `voice-pre-session.ts`; user is navigated to `/session/new?topic=...`.
   - If mic is denied: inline error with "Retry microphone" and "Continue with text mode" options.
 
 ### 4. Coaching Session
@@ -109,9 +110,14 @@ The Gate is a voice-first coaching app that audits your understanding of any top
 
 ## Voice Architecture
 
+### Mic Pre-Acquisition
+
+- On the knowledge map, clicking "Start" on a new topic calls `getUserMedia` and creates an `AudioContext` during the user gesture. The stream and context are stored in `voice-pre-session.ts` and carried into `/session/new`, avoiding autoplay rejection on the session page.
+- If mic is denied: inline error with "Retry microphone" and "Continue with text mode" options.
+
 ### Transcription
 
-- **Primary:** OpenAI Realtime API (WebRTC). Ephemeral token from `/api/voice/realtime-token` (GA `client_secrets` endpoint). Partial transcripts as user speaks; final transcript on turn end. Token refresh every 45s; on expiry, user taps Reconnect.
+- **Primary:** OpenAI Realtime API (WebRTC). Ephemeral token from `/api/voice/realtime-token` (GA `client_secrets` endpoint). Partial transcripts as user speaks; final transcript on turn end. Token refresh every 45s; on expiry, user taps Reconnect. State updates use `onConnectionStateChange` for reliability.
 - **Fallback:** VAD (MicVAD) + Whisper. No partial transcripts; "Speak now" / "Processing your speech..." states; "Using backup voice" indicator.
 
 ### Text-to-Speech
@@ -119,11 +125,13 @@ The Gate is a voice-first coaching app that audits your understanding of any top
 - **Provider:** ElevenLabs (`/api/voice/tts`). Streaming MP3 via `MediaSource` + `SourceBuffer` for low latency.
 - **Chunking:** Phrase-level (sentence, comma, semicolon) to start playback sooner.
 - **Interrupt:** When user speaks during coach response, TTS stops and queue clears.
+- **Error state:** `ttsError` tracks `NotAllowedError` and other playback failures; surfaced in the UI.
 
 ### Error Handling
 
 - **`lib/voice-errors.ts`:** Maps raw errors (network, auth, mic denial, token expiry, API) to user-facing messages and suggested actions.
 - **Reconnect:** Explicit button when `voiceError` is set; triggers `getUserMedia` and re-establishes connection.
+- **Voice state:** Managed via `useState` with ref-based cleanup (switched from `useSyncExternalStore` for React 19 compatibility).
 
 ---
 
@@ -174,15 +182,18 @@ The Gate is a voice-first coaching app that audits your understanding of any top
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Next.js 16 (App Router) + TypeScript |
+| Framework | Next.js 16.1.6 (App Router) + TypeScript 5 |
+| React | React 19.2 |
 | Styling | Tailwind CSS v4 |
 | Database | Supabase (Postgres, Auth, pgvector) |
 | AI (LLM) | Anthropic Claude via Vercel AI SDK v6 |
 | AI (STT) | OpenAI Realtime API, Whisper (fallback) |
 | AI (TTS) | ElevenLabs |
 | Caching | Upstash Redis |
-| State | TanStack React Query (session/topic data) |
+| State | TanStack React Query v5 |
+| Visualization | D3.js, react-force-graph-2d |
 | Icons | Lucide React |
+| Testing | Vitest, Testing Library, jsdom |
 | Deployment | Vercel |
 
 ---
@@ -204,33 +215,87 @@ src/
 │   ├── onboarding/             # FTUE page
 │   ├── session/[topicId]/      # Coaching session page
 │   ├── session-close/[sessionId]/  # Post-session summary
-│   └── layout.tsx
+│   ├── layout.tsx              # Root layout (QueryProvider, ToastProvider)
+│   ├── page.tsx                # Knowledge Map (home)
+│   └── globals.css             # Design tokens, dark theme, animations
 ├── components/
-│   ├── knowledge-map/          # Home: topic cards, new topic form
-│   ├── session/                # Chat, voice mode, topic entry, controls
-│   ├── session-close/          # Summary, level progression, benchmark, self-test
-│   ├── providers/              # QueryClientProvider
-│   └── ui/                     # Button, Card, Input, etc.
+│   ├── knowledge-map/
+│   │   ├── knowledge-map.tsx   # Topic list, new topic form
+│   │   ├── topic-card.tsx      # Depth level, status, mental model
+│   │   ├── depth-badge.tsx     # Depth level badge
+│   │   ├── room-marker.tsx     # Benchmark marker
+│   │   ├── pack-map.tsx        # D3 zoomable circle pack (hidden; list view active)
+│   │   └── canvas-map.tsx      # 2D force-graph with connections (hidden)
+│   ├── session/
+│   │   ├── voice-mode.tsx      # Visualizer, transcript, controls
+│   │   ├── voice-transcript.tsx
+│   │   ├── voice-controls.tsx  # Mute, pause, end
+│   │   ├── audio-visualizer.tsx
+│   │   ├── session-header.tsx  # Back, level progression, session #
+│   │   ├── topic-entry.tsx     # NewTopicEntry, ReturningTopicEntry
+│   │   ├── chat-input.tsx
+│   │   └── chat-message.tsx
+│   ├── session-close/
+│   │   ├── session-summary.tsx
+│   │   ├── level-progression.tsx
+│   │   ├── room-benchmark.tsx
+│   │   └── self-test.tsx
+│   ├── providers/
+│   │   └── query-provider.tsx  # TanStack React Query
+│   └── ui/
+│       ├── button.tsx
+│       ├── card.tsx
+│       ├── input.tsx
+│       ├── toast.tsx           # Toast notifications (ToastProvider in root layout)
+│       ├── skeleton.tsx        # Loading skeleton
+│       ├── loading-spinner.tsx
+│       └── section-header.tsx
 ├── hooks/
 │   ├── use-voice-session.ts    # Voice orchestration (realtime + fallback, TTS)
 │   ├── use-realtime-transcription.ts
 │   ├── use-vad-whisper-transcription.ts
-│   ├── use-session-chat.ts      # TanStack Query for session/topic data
-│   └── use-tts-playback.ts     # Session-close TTS
+│   ├── use-session-chat.ts     # TanStack Query for session/topic data
+│   ├── use-tts-playback.ts     # Session-close TTS
+│   └── __tests__/              # Vitest repro tests for voice hooks
 ├── lib/
-│   ├── prompts/                # coach-system, coach-audio, coach-text, analysis, ftue
+│   ├── prompts/                # coach-system, analysis, ftue-system
 │   ├── cache/conversation-context.ts  # Redis message cache
 │   ├── voice-errors.ts         # Error mapping for voice UX
-│   ├── voice-pre-session.ts    # Pre-acquired mic stream (new topic)
+│   ├── voice-pre-session.ts    # Pre-acquired mic stream + AudioContext
 │   ├── audio-utils.ts          # WAV conversion for Whisper
-│   ├── supabase/               # Server/client, middleware
-│   ├── knowledge-map/          # Similarity, pack hierarchy, connections
+│   ├── supabase/               # Server, client, middleware
+│   ├── knowledge-map/
+│   │   ├── pack-hierarchy.ts   # Pack layout data for D3
+│   │   ├── similarity-hierarchy.ts  # Topic clustering for pack view
+│   │   ├── connections.ts      # Topic connections for force graph
+│   │   └── icon-cache.ts       # Lucide icon whitelist + cache
+│   ├── utils.ts                # Shared utilities
+│   ├── date-utils.ts           # Date formatting
 │   └── types.ts
-├── middleware.ts               # Session refresh
+├── middleware.ts               # Session refresh, auth redirects
 supabase/
 ├── migrations/                 # 001_initial_schema, 002_add_topic_icon
 └── seed/                       # benchmarks.sql
 ```
+
+---
+
+## Testing
+
+| Tool | Purpose |
+|------|---------|
+| Vitest | Test runner (jsdom environment, 35s timeout) |
+| Testing Library | React component rendering + queries |
+
+```bash
+npm run test          # Single run
+npm run test:watch    # Watch mode
+```
+
+Test files live in `src/hooks/__tests__/` and focus on voice session lifecycle:
+
+- **`voice-connection.repro.test.tsx`** — Realtime transcription connection, `getUserMedia` ordering, step-by-step diagnostics.
+- **`session-start-speaking.repro.test.tsx`** — Session auto-start, TTS playback, autoplay rejection handling, reconnect flow.
 
 ---
 
