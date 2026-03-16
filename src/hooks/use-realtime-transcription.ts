@@ -22,7 +22,10 @@ interface UseRealtimeTranscriptionOptions {
   onConnectionStateChange?: (state: "connecting" | "connected" | "disconnected" | "failed") => void;
 }
 
-const TOKEN_REFRESH_MS = 45_000;
+const REFRESH_BUFFER_MS = 60_000;
+const FALLBACK_REFRESH_MS = 540_000;
+const MIN_REFRESH_MS = 30_000;
+const MAX_AUTO_RECONNECTS = 5;
 const FETCH_TIMEOUT_MS = 25_000;
 
 export function useRealtimeTranscription(
@@ -40,6 +43,8 @@ export function useRealtimeTranscription(
   const streamRef = useRef<MediaStream | null>(null);
   const tokenRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const partialBufferRef = useRef("");
+  const reconnectingRef = useRef(false);
+  const autoReconnectCountRef = useRef(0);
 
   const connect = useCallback(async (preAcquiredStream?: MediaStream | null) => {
     let stream: MediaStream | null = null;
@@ -72,7 +77,10 @@ export function useRealtimeTranscription(
         stream.getTracks().forEach((t) => t.stop());
         throw new Error(`Token failed: ${errText}`);
       }
-      const { token } = (await tokenRes.json()) as { token: string };
+      const { token, expires_at } = (await tokenRes.json()) as {
+        token: string;
+        expires_at?: number;
+      };
 
       const pc = new RTCPeerConnection();
       pcRef.current = pc;
@@ -119,6 +127,7 @@ export function useRealtimeTranscription(
       });
 
       dc.addEventListener("close", () => {
+        if (reconnectingRef.current) return;
         setIsConnected(false);
         optionsRef.current.onConnectionStateChange?.("disconnected");
       });
@@ -150,14 +159,44 @@ export function useRealtimeTranscription(
         sdp: answerSdp,
       });
 
-      tokenRefreshTimerRef.current = setTimeout(() => {
+      const refreshDelay = expires_at
+        ? Math.max(expires_at * 1000 - Date.now() - REFRESH_BUFFER_MS, MIN_REFRESH_MS)
+        : FALLBACK_REFRESH_MS;
+
+      tokenRefreshTimerRef.current = setTimeout(async () => {
+        if (autoReconnectCountRef.current >= MAX_AUTO_RECONNECTS) {
+          disconnect();
+          const info = normalizeVoiceError("Session expired.");
+          setError(`${info.message} ${info.action}`);
+          setIsConnected(false);
+          optionsRef.current.onConnectionStateChange?.("failed");
+          optionsRef.current.onError?.(new Error("Session expired"));
+          return;
+        }
+
+        reconnectingRef.current = true;
+        const existingStream = streamRef.current;
+        streamRef.current = null;
         disconnect();
-        const info = normalizeVoiceError("Session expired.");
-        setError(`${info.message} ${info.action}`);
-        setIsConnected(false);
-        optionsRef.current.onConnectionStateChange?.("failed");
-        optionsRef.current.onError?.(new Error("Session expired"));
-      }, TOKEN_REFRESH_MS);
+
+        try {
+          await connect(existingStream ?? undefined);
+          autoReconnectCountRef.current++;
+          reconnectingRef.current = false;
+        } catch (err) {
+          reconnectingRef.current = false;
+          if (existingStream) {
+            existingStream.getTracks().forEach((t) => t.stop());
+          }
+          const info = normalizeVoiceError("Session expired.");
+          setError(`${info.message} ${info.action}`);
+          setIsConnected(false);
+          optionsRef.current.onConnectionStateChange?.("failed");
+          optionsRef.current.onError?.(
+            err instanceof Error ? err : new Error("Session expired")
+          );
+        }
+      }, refreshDelay);
     } catch (err) {
       if (stream && !preAcquiredStream) {
         stream.getTracks().forEach((t) => t.stop());
