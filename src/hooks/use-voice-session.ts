@@ -39,6 +39,12 @@ interface UseVoiceSessionOptions {
   ) => void;
 }
 
+interface TTSSlot {
+  ready: boolean;
+  play: (() => Promise<void>) | null;
+  failed: boolean;
+}
+
 export function useVoiceSession(options: UseVoiceSessionOptions) {
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -62,7 +68,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
-  const queueRef = useRef<Array<() => Promise<void>>>([]);
+  const queueRef = useRef<TTSSlot[]>([]);
   const playingRef = useRef(false);
   const abortCtrlsRef = useRef<AbortController[]>([]);
   const sentLenRef = useRef(0);
@@ -126,9 +132,19 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
         continue;
       }
 
-      const playTask = queueRef.current.shift()!;
+      const slot = queueRef.current[0];
+
+      if (!slot.ready) {
+        await new Promise((r) => setTimeout(r, 10));
+        continue;
+      }
+
+      queueRef.current.shift();
+
+      if (slot.failed || !slot.play) continue;
+
       try {
-        await playTask();
+        await slot.play();
         setTtsError(null);
       } catch (err) {
         if (err instanceof DOMException && err.name === "NotAllowedError") {
@@ -263,6 +279,10 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
     async (text: string) => {
       const ctrl = new AbortController();
       abortCtrlsRef.current.push(ctrl);
+
+      const slot: TTSSlot = { ready: false, play: null, failed: false };
+      queueRef.current.push(slot);
+
       try {
         const res = await fetch("/api/voice/tts", {
           method: "POST",
@@ -271,15 +291,21 @@ export function useVoiceSession(options: UseVoiceSessionOptions) {
           signal: ctrl.signal,
         });
         if (!res.ok) {
+          slot.failed = true;
+          slot.ready = true;
           setTtsError("Voice audio unavailable");
+          playQueue();
           return;
         }
-        const playTask = createStreamingPlayTask(res, ctrl);
-        queueRef.current.push(playTask);
+        slot.play = createStreamingPlayTask(res, ctrl);
+        slot.ready = true;
         playQueue();
       } catch (err) {
+        slot.failed = true;
+        slot.ready = true;
         if (err instanceof DOMException && err.name === "AbortError") return;
         setTtsError("Voice audio unavailable");
+        playQueue();
       }
     },
     [playQueue, createStreamingPlayTask]
