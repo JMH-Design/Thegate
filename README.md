@@ -137,17 +137,17 @@ The Gate is a voice-first coaching app that audits your understanding of any top
 
 ## API Routes
 
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/chat` | POST | Streaming chat with Claude; uses coach system prompt (audio vs text mode) |
-| `/api/onboarding` | POST | FTUE conversation; extract profile |
-| `/api/sessions/close` | POST | Analyze transcript, persist session, update topic |
-| `/api/voice/realtime-token` | POST | Fetch OpenAI Realtime GA client secret |
-| `/api/voice/tts` | POST | ElevenLabs streaming TTS |
-| `/api/voice/transcribe` | POST | Whisper batch transcription (fallback) |
-| `/api/topics/cluster` | POST | Topic clustering (knowledge map) |
-| `/api/topics/suggest-icon` | POST | Icon suggestions for topics |
-| `/api/db/check-icon-column` | GET | DB schema check |
+| Route                       | Method | Purpose                                                                   |
+| --------------------------- | ------ | ------------------------------------------------------------------------- |
+| `/api/chat`                 | POST   | Streaming chat with Claude; uses coach system prompt (audio vs text mode) |
+| `/api/onboarding`           | POST   | FTUE conversation; extract profile                                        |
+| `/api/sessions/close`       | POST   | Analyze transcript, persist session, update topic                         |
+| `/api/voice/realtime-token` | POST   | Fetch OpenAI Realtime GA client secret                                    |
+| `/api/voice/tts`            | POST   | ElevenLabs streaming TTS                                                  |
+| `/api/voice/transcribe`     | POST   | Whisper batch transcription (fallback)                                    |
+| `/api/topics/cluster`       | POST   | Topic clustering (knowledge map)                                          |
+| `/api/topics/suggest-icon`  | POST   | Icon suggestions for topics                                               |
+| `/api/db/check-icon-column` | GET    | DB schema check                                                           |
 
 ---
 
@@ -168,33 +168,33 @@ The Gate is a voice-first coaching app that audits your understanding of any top
 
 ## The Five Depth Levels
 
-| Level | Label | Test |
-|-------|-------|------|
-| 1 | Familiarity | "Describe it in 1-2 sentences" |
-| 2 | Explanation | "Why does it work that way?" |
-| 3 | Prediction | "What happens if [condition changes]?" |
-| 4 | Intervention | "If it were broken, how would you fix it?" |
-| 5 | Generation | "Build something using this" |
+| Level | Label        | Test                                       |
+| ----- | ------------ | ------------------------------------------ |
+| 1     | Familiarity  | "Describe it in 1-2 sentences"             |
+| 2     | Explanation  | "Why does it work that way?"               |
+| 3     | Prediction   | "What happens if [condition changes]?"     |
+| 4     | Intervention | "If it were broken, how would you fix it?" |
+| 5     | Generation   | "Build something using this"               |
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Framework | Next.js 16.1.6 (App Router) + TypeScript 5 |
-| React | React 19.2 |
-| Styling | Tailwind CSS v4 |
-| Database | Supabase (Postgres, Auth, pgvector) |
-| AI (LLM) | Anthropic Claude via Vercel AI SDK v6 |
-| AI (STT) | OpenAI Realtime API, Whisper (fallback) |
-| AI (TTS) | ElevenLabs |
-| Caching | Upstash Redis |
-| State | TanStack React Query v5 |
-| Visualization | D3.js, react-force-graph-2d |
-| Icons | Lucide React |
-| Testing | Vitest, Testing Library, jsdom |
-| Deployment | Vercel |
+| Layer         | Technology                                 |
+| ------------- | ------------------------------------------ |
+| Framework     | Next.js 16.1.6 (App Router) + TypeScript 5 |
+| React         | React 19.2                                 |
+| Styling       | Tailwind CSS v4                            |
+| Database      | Supabase (Postgres, Auth, pgvector)        |
+| AI (LLM)      | Anthropic Claude via Vercel AI SDK v6      |
+| AI (STT)      | OpenAI Realtime API, Whisper (fallback)    |
+| AI (TTS)      | ElevenLabs                                 |
+| Caching       | Upstash Redis                              |
+| State         | TanStack React Query v5                    |
+| Visualization | D3.js, react-force-graph-2d                |
+| Icons         | Lucide React                               |
+| Testing       | Vitest, Testing Library, jsdom             |
+| Deployment    | Vercel                                     |
 
 ---
 
@@ -282,10 +282,10 @@ supabase/
 
 ## Testing
 
-| Tool | Purpose |
-|------|---------|
-| Vitest | Test runner (jsdom environment, 35s timeout) |
-| Testing Library | React component rendering + queries |
+| Tool            | Purpose                                      |
+| --------------- | -------------------------------------------- |
+| Vitest          | Test runner (jsdom environment, 35s timeout) |
+| Testing Library | React component rendering + queries          |
 
 ```bash
 npm run test          # Single run
@@ -363,4 +363,4 @@ Push to GitHub and connect to Vercel. Set all environment variables in the Verce
 
 ---
 
-*Most people walk past. We stay.*
+_Most people walk past. We stay._
